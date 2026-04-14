@@ -54,6 +54,9 @@ dependencies {
     // ViewModel Compose
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
 
+    // ViewModel KTX — provides viewModelScope for derived StateFlows
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0")
+
     // Icons Extended
     implementation("androidx.compose.material:material-icons-extended:1.6.3")
 
