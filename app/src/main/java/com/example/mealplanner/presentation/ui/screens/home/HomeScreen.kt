@@ -36,7 +36,9 @@ fun HomeScreen(
     mealPlannerViewModel: MealPlannerViewModel,
     onNavigateToPlanner: () -> Unit,
     onNavigateToCalories: () -> Unit,
-    onNavigateToProfile: () -> Unit
+    onNavigateToProfile: () -> Unit,
+    // Navigates directly to a specific day's detail screen (deep navigation)
+    onNavigateToDayDetail: (String) -> Unit = {}
 ) {
     // ── State collection (single source of truth via ViewModels) ─────────────
     val profileState      by profileViewModel.uiState.collectAsState()
@@ -156,8 +158,8 @@ fun HomeScreen(
                 )
                 Spacer(Modifier.height(10.dp))
                 WeekDayHighlightsRow(
-                    weekPlan = plannerState.weekPlan,
-                    onDayClick = onNavigateToPlanner
+                    weekPlan   = plannerState.weekPlan,
+                    onDayClick = onNavigateToDayDetail   // navigates directly to that day
                 )
                 Spacer(Modifier.height(20.dp))
             }
@@ -313,24 +315,26 @@ fun SuggestedMealsRow(
 @Composable
 fun WeekDayHighlightsRow(
     weekPlan: Map<String, com.example.mealplanner.model.DayPlan>,
-    onDayClick: () -> Unit
+    // Receives the day name so callers can navigate to the correct day's detail
+    onDayClick: (String) -> Unit
 ) {
     LazyRow(
         contentPadding        = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         items(HardcodedData.weekDays, key = { it }) { dayName ->
-            val dayPlan   = weekPlan[dayName]
-            val calories  = dayPlan?.totalCalories ?: 0
+            val dayPlan    = weekPlan[dayName]
+            val calories   = dayPlan?.totalCalories ?: 0
             val isComplete = dayPlan?.isComplete == true
-            val mealCount = dayPlan?.totalMealCount ?: 0
+            val mealCount  = dayPlan?.totalMealCount ?: 0
 
             DayHighlightCard(
                 dayName    = dayName,
                 calories   = calories,
                 mealCount  = mealCount,
                 isComplete = isComplete,
-                onClick    = onDayClick
+                // Pass dayName so the card can navigate to that specific day
+                onClick    = { onDayClick(dayName) }
             )
         }
     }
