@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(del \"D:\\\\Mobile-Programming\\\\app\\\\src\\\\main\\\\java\\\\com\\\\example\\\\mealplanner\\\\presentation\\\\viewmodel\\\\AuthViewModel.kt\")"
-    ]
-  }
-}
