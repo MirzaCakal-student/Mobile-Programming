@@ -33,8 +33,7 @@ fun MealPlannerScreen(
     viewModel: MealPlannerViewModel,
     onDayClick: (String) -> Unit
 ) {
-    val state         by viewModel.uiState.collectAsState()
-    // Collected from derived StateFlow — no local computation in composable
+    val weekPlan      by viewModel.weekPlan.collectAsState()
     val completedDays by viewModel.completedDaysCount.collectAsState()
 
     // State for scroll-to-top behavior (bonus feature)
@@ -81,7 +80,7 @@ fun MealPlannerScreen(
             item { SectionHeader("Days of the Week") }
 
             items(HardcodedData.weekDays, key = { it }) { dayName ->
-                val dayPlan = state.weekPlan[dayName]
+                val dayPlan = weekPlan[dayName]
                 DayCard(
                     dayName = dayName,
                     dayPlan = dayPlan,

@@ -22,25 +22,23 @@ import com.example.mealplanner.model.MealSlotType
 import com.example.mealplanner.presentation.ui.components.CalorieStatusBanner
 import com.example.mealplanner.presentation.ui.components.MacroChip
 import com.example.mealplanner.presentation.ui.components.MealPlannerTopBar
-import com.example.mealplanner.presentation.viewmodel.MealPlannerViewModel
+import com.example.mealplanner.presentation.viewmodel.DayDetailViewModel
 
 @Composable
 fun DayDetailScreen(
-    dayName: String,
-    viewModel: MealPlannerViewModel,
+    viewModel: DayDetailViewModel,
     onSlotClick: (String) -> Unit,
     onBack: () -> Unit
 ) {
-    val state   by viewModel.uiState.collectAsState()
-    val dayPlan  = state.weekPlan[dayName]
-    val goal     = 2000
+    val dayPlan by viewModel.dayPlan.collectAsState()
+    val goal    = 2000
 
     Scaffold(
-        topBar    = { MealPlannerTopBar(title = dayName, onBack = onBack) },
+        topBar    = { MealPlannerTopBar(title = viewModel.dayName, onBack = onBack) },
         bottomBar = {
             DayDoneBottomBar(
                 isComplete = dayPlan?.isComplete == true,
-                onMarkDone = { viewModel.markDayComplete(dayName) }
+                onMarkDone = viewModel::markDayComplete
             )
         }
     ) { padding ->

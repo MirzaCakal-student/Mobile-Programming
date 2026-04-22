@@ -2,24 +2,29 @@ package com.example.mealplanner.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import com.example.mealplanner.model.UserProfile
+import com.example.mealplanner.model.repository.InMemoryProfileRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
+// ── UI State ──────────────────────────────────────────────────────────────────
+
 data class ProfileUiState(
-    val profile: UserProfile     = UserProfile(name = "Mirza", email = "mirza@example.com"),
-    val nameInput: String        = "Mirza",
-    val emailInput: String       = "mirza@example.com",
+    val profile: UserProfile     = InMemoryProfileRepository.profile.value,
+    val nameInput: String        = InMemoryProfileRepository.profile.value.name,
+    val emailInput: String       = InMemoryProfileRepository.profile.value.email,
     val weightInput: String      = "",
     val heightInput: String      = "",
     val ageInput: String         = "",
-    val calorieGoalInput: String = "2000",
-    val gender: String           = "Male",
+    val calorieGoalInput: String = InMemoryProfileRepository.profile.value.dailyCalorieGoal.toString(),
+    val gender: String           = InMemoryProfileRepository.profile.value.gender,
     val isSaved: Boolean         = false,
     val nameError: String?       = null,
     val emailError: String?      = null
 )
+
+// ── ViewModel — scoped to ProfileScreen ──────────────────────────────────────
 
 class ProfileViewModel : ViewModel() {
 
@@ -36,8 +41,8 @@ class ProfileViewModel : ViewModel() {
 
     fun onSaveProfile() {
         val s = _uiState.value
-        val nameErr  = if (s.nameInput.isBlank())         "Name is required"   else null
-        val emailErr = if (!s.emailInput.contains("@"))   "Valid email required" else null
+        val nameErr  = if (s.nameInput.isBlank())       "Name is required"      else null
+        val emailErr = if (!s.emailInput.contains("@")) "Valid email required"   else null
 
         if (nameErr != null || emailErr != null) {
             _uiState.update { it.copy(nameError = nameErr, emailError = emailErr) }
@@ -47,12 +52,14 @@ class ProfileViewModel : ViewModel() {
         val updated = UserProfile(
             name             = s.nameInput,
             email            = s.emailInput,
-            weightKg         = s.weightInput.toDoubleOrNull()  ?: 0.0,
-            heightCm         = s.heightInput.toDoubleOrNull()  ?: 0.0,
-            ageYears         = s.ageInput.toIntOrNull()        ?: 0,
+            weightKg         = s.weightInput.toDoubleOrNull()   ?: 0.0,
+            heightCm         = s.heightInput.toDoubleOrNull()   ?: 0.0,
+            ageYears         = s.ageInput.toIntOrNull()         ?: 0,
             dailyCalorieGoal = s.calorieGoalInput.toIntOrNull() ?: 2000,
             gender           = s.gender
         )
+        // Write to repository so HomeViewModel's profile StateFlow updates automatically
+        InMemoryProfileRepository.save(updated)
         _uiState.update { it.copy(profile = updated, isSaved = true) }
     }
 

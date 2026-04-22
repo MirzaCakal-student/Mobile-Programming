@@ -21,15 +21,15 @@ import androidx.compose.ui.unit.sp
 import com.example.mealplanner.presentation.ui.components.AppTextField
 import com.example.mealplanner.presentation.ui.components.MealPlannerTopBar
 import com.example.mealplanner.presentation.ui.components.PrimaryButton
-import com.example.mealplanner.presentation.viewmodel.AuthViewModel
+import com.example.mealplanner.presentation.viewmodel.SignUpViewModel
 
 @Composable
 fun SignUpScreen(
-    viewModel: AuthViewModel,
+    viewModel: SignUpViewModel,
     onSignUpSuccess: () -> Unit,
     onNavigateToLogin: () -> Unit
 ) {
-    val state by viewModel.signUpState.collectAsState()
+    val state by viewModel.uiState.collectAsState()
 
     LaunchedEffect(state.signUpSuccess) {
         if (state.signUpSuccess) {
@@ -72,11 +72,11 @@ fun SignUpScreen(
                         passwordError    = state.passwordError,
                         confirmPassError = state.confirmPasswordError,
                         isLoading        = state.isLoading,
-                        onNameChange     = viewModel::onSignUpNameChange,
-                        onEmailChange    = viewModel::onSignUpEmailChange,
-                        onPasswordChange = viewModel::onSignUpPasswordChange,
-                        onConfirmChange  = viewModel::onSignUpConfirmPasswordChange,
-                        onSubmit         = viewModel::onSignUpSubmit
+                        onNameChange     = viewModel::onNameChange,
+                        onEmailChange    = viewModel::onEmailChange,
+                        onPasswordChange = viewModel::onPasswordChange,
+                        onConfirmChange  = viewModel::onConfirmPasswordChange,
+                        onSubmit         = viewModel::onSubmit
                     )
                 }
             }

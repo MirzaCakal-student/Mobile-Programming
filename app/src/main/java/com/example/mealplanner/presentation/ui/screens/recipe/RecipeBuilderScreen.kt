@@ -21,15 +21,13 @@ import com.example.mealplanner.model.Ingredient
 import com.example.mealplanner.presentation.ui.components.AppSearchBar
 import com.example.mealplanner.presentation.ui.components.MacroChip
 import com.example.mealplanner.presentation.ui.components.MealPlannerTopBar
-import com.example.mealplanner.presentation.viewmodel.MealPlannerViewModel
+import com.example.mealplanner.presentation.viewmodel.RecipeBuilderViewModel
 
 data class IngredientEntry(val ingredient: Ingredient, val grams: Double)
 
 @Composable
 fun RecipeBuilderScreen(
-    dayName: String,
-    slotName: String,
-    viewModel: MealPlannerViewModel,
+    viewModel: RecipeBuilderViewModel,
     onBack: () -> Unit
 ) {
     var recipeName          by remember { mutableStateOf("") }
@@ -38,7 +36,7 @@ fun RecipeBuilderScreen(
     var selectedIngredients by remember { mutableStateOf<List<IngredientEntry>>(emptyList()) }
     var selectedTab         by remember { mutableStateOf(0) }
 
-    // Derived values from local state (no business logic in composable — pure UI computation)
+    // Derived values from local state (ephemeral ingredient selections — transient form state)
     val totalCal  = selectedIngredients.sumOf { (it.ingredient.caloriesPer100g * it.grams / 100).toInt() }
     val totalProt = selectedIngredients.sumOf { it.ingredient.proteinPer100g * it.grams / 100 }
     val totalCarb = selectedIngredients.sumOf { it.ingredient.carbsPer100g   * it.grams / 100 }
@@ -60,9 +58,13 @@ fun RecipeBuilderScreen(
                 onSave       = {
                     if (recipeName.isBlank()) { nameError = "Recipe name is required"; return@RecipeBottomBar }
                     if (selectedIngredients.isEmpty()) return@RecipeBottomBar
-                    viewModel.addCustomRecipeAsMeal(
-                        dayName  = dayName, slotName = slotName, name = recipeName,
-                        calories = totalCal, proteinG = totalProt, fatG = totalFat, carbsG = totalCarb
+                    // ViewModel handles repository write — no business logic in composable
+                    viewModel.saveRecipe(
+                        name     = recipeName,
+                        calories = totalCal,
+                        proteinG = totalProt,
+                        fatG     = totalFat,
+                        carbsG   = totalCarb
                     )
                     onBack()
                 }

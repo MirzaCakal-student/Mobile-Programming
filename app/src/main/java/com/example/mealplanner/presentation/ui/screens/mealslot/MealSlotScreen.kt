@@ -14,29 +14,23 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mealplanner.model.Meal
-import com.example.mealplanner.model.MealSlotType
 import com.example.mealplanner.presentation.ui.components.EmptyState
 import com.example.mealplanner.presentation.ui.components.MacroChip
 import com.example.mealplanner.presentation.ui.components.MealListItem
 import com.example.mealplanner.presentation.ui.components.MealPlannerTopBar
-import com.example.mealplanner.presentation.viewmodel.MealPlannerViewModel
+import com.example.mealplanner.presentation.viewmodel.MealSlotViewModel
 
 @Composable
 fun MealSlotScreen(
-    dayName: String,
-    slotName: String,
-    viewModel: MealPlannerViewModel,
+    viewModel: MealSlotViewModel,
     onAddMeal: () -> Unit,
     onAddRecipe: () -> Unit,
     onBack: () -> Unit
 ) {
-    val state   by viewModel.uiState.collectAsState()
-    val dayPlan  = state.weekPlan[dayName]
-    val slotType = MealSlotType.values().firstOrNull { it.displayName.equals(slotName, ignoreCase = true) }
-    val meals    = slotType?.let { dayPlan?.mealsForSlot(it) } ?: emptyList()
+    val meals by viewModel.meals.collectAsState()
 
     Scaffold(
-        topBar    = { MealPlannerTopBar(title = "$dayName — $slotName", onBack = onBack) },
+        topBar    = { MealPlannerTopBar(title = "${viewModel.dayName} — ${viewModel.slotName}", onBack = onBack) },
         bottomBar = { SlotActionBar(onAddMeal = onAddMeal, onAddRecipe = onAddRecipe) }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -46,7 +40,7 @@ fun MealSlotScreen(
                 EmptyState(
                     emoji    = "🍽",
                     title    = "No meals yet",
-                    subtitle = "Tap 'Add Pre-made Meal' or 'Build Recipe' below to plan your $slotName"
+                    subtitle = "Tap 'Add Pre-made Meal' or 'Build Recipe' below to plan your ${viewModel.slotName}"
                 )
             } else {
                 // LazyColumn — scrollable list of meals in this slot
@@ -58,7 +52,7 @@ fun MealSlotScreen(
                         // Uses reusable MealListItem from components/
                         MealListItem(
                             meal                    = meal,
-                            onRemove                = { viewModel.removeMeal(dayName, slotName, meal) },
+                            onRemove                = { viewModel.removeMeal(meal) },
                             showDeleteConfirmDialog  = true
                         )
                     }

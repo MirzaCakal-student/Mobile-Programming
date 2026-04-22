@@ -18,29 +18,27 @@ import com.example.mealplanner.presentation.ui.components.EmptyState
 import com.example.mealplanner.presentation.ui.components.MealListItem
 import com.example.mealplanner.presentation.ui.components.MealPlannerTopBar
 import com.example.mealplanner.presentation.ui.components.PrimaryButton
-import com.example.mealplanner.presentation.viewmodel.MealPlannerViewModel
+import com.example.mealplanner.presentation.viewmodel.AddMealViewModel
 
 @Composable
 fun AddMealScreen(
-    dayName: String,
-    slotName: String,
-    viewModel: MealPlannerViewModel,
+    viewModel: AddMealViewModel,
     onBack: () -> Unit
 ) {
     val state         by viewModel.uiState.collectAsState()
     // Derived StateFlow — no filtering logic inside composable
-    val filteredMeals by viewModel.filteredMealsFlow.collectAsState()
+    val filteredMeals by viewModel.filteredMeals.collectAsState()
     var selectedTab   by remember { mutableStateOf(0) }
 
-    LaunchedEffect(state.addMealSuccess) {
-        if (state.addMealSuccess) {
-            viewModel.resetAddMealSuccess()
+    LaunchedEffect(state.addSuccess) {
+        if (state.addSuccess) {
+            viewModel.resetAddSuccess()
             onBack()
         }
     }
 
     Scaffold(
-        topBar = { MealPlannerTopBar(title = "Add to $slotName", onBack = onBack) }
+        topBar = { MealPlannerTopBar(title = "Add to ${viewModel.slotName}", onBack = onBack) }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             TabRow(
@@ -66,23 +64,23 @@ fun AddMealScreen(
                 0 -> PremadeMealsTab(
                     query         = state.searchQuery,
                     onQuery       = viewModel::onSearchQueryChange,
-                    filteredMeals = filteredMeals,   // state driven — no logic in composable
-                    onAdd         = { meal -> viewModel.addPremadeMeal(dayName, slotName, meal); onBack() }
+                    filteredMeals = filteredMeals,
+                    onAdd         = { meal -> viewModel.addPremadeMeal(meal) }
                 )
                 1 -> CustomMealTab(
-                    name          = state.customMealName,
-                    calories      = state.customMealCalories,
-                    protein       = state.customMealProtein,
-                    fat           = state.customMealFat,
-                    carbs         = state.customMealCarbs,
-                    nameError     = state.customMealNameError,
-                    caloriesError = state.customMealCaloriesError,
-                    onNameChange  = viewModel::onCustomMealNameChange,
-                    onCalChange   = viewModel::onCustomMealCaloriesChange,
-                    onProtChange  = viewModel::onCustomMealProteinChange,
-                    onFatChange   = viewModel::onCustomMealFatChange,
-                    onCarbChange  = viewModel::onCustomMealCarbsChange,
-                    onSubmit      = { viewModel.submitCustomMeal(dayName, slotName) }
+                    name          = state.customName,
+                    calories      = state.customCalories,
+                    protein       = state.customProtein,
+                    fat           = state.customFat,
+                    carbs         = state.customCarbs,
+                    nameError     = state.customNameError,
+                    caloriesError = state.customCaloriesError,
+                    onNameChange  = viewModel::onCustomNameChange,
+                    onCalChange   = viewModel::onCustomCalChange,
+                    onProtChange  = viewModel::onCustomProteinChange,
+                    onFatChange   = viewModel::onCustomFatChange,
+                    onCarbChange  = viewModel::onCustomCarbsChange,
+                    onSubmit      = viewModel::submitCustomMeal
                 )
             }
         }

@@ -25,15 +25,15 @@ import androidx.compose.ui.unit.sp
 import com.example.mealplanner.presentation.ui.components.AppTextField
 import com.example.mealplanner.presentation.ui.components.LabelDivider
 import com.example.mealplanner.presentation.ui.components.PrimaryButton
-import com.example.mealplanner.presentation.viewmodel.AuthViewModel
+import com.example.mealplanner.presentation.viewmodel.LoginViewModel
 
 @Composable
 fun LoginScreen(
-    viewModel: AuthViewModel,
+    viewModel: LoginViewModel,
     onNavigateToSignUp: () -> Unit,
     onLoginSuccess: () -> Unit
 ) {
-    val state by viewModel.loginState.collectAsState()
+    val state by viewModel.uiState.collectAsState()
 
     LaunchedEffect(state.loginSuccess) {
         if (state.loginSuccess) {
@@ -65,9 +65,9 @@ fun LoginScreen(
                 emailError       = state.emailError,
                 passwordError    = state.passwordError,
                 isLoading        = state.isLoading,
-                onEmailChange    = viewModel::onLoginEmailChange,
-                onPasswordChange = viewModel::onLoginPasswordChange,
-                onSubmit         = viewModel::onLoginSubmit
+                onEmailChange    = viewModel::onEmailChange,
+                onPasswordChange = viewModel::onPasswordChange,
+                onSubmit         = viewModel::onSubmit
             )
             Spacer(Modifier.height(20.dp))
             LabelDivider("or")

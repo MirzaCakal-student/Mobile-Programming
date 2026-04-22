@@ -25,33 +25,28 @@ import com.example.mealplanner.model.Meal
 import com.example.mealplanner.presentation.ui.components.MealCardCompact
 import com.example.mealplanner.presentation.ui.components.SectionHeader
 import com.example.mealplanner.presentation.ui.components.StatCard
-import com.example.mealplanner.presentation.viewmodel.MealPlannerViewModel
-import com.example.mealplanner.presentation.viewmodel.ProfileViewModel
+import com.example.mealplanner.presentation.viewmodel.HomeViewModel
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 @Composable
 fun HomeScreen(
-    profileViewModel: ProfileViewModel,
-    mealPlannerViewModel: MealPlannerViewModel,
+    viewModel: HomeViewModel,
     onNavigateToPlanner: () -> Unit,
     onNavigateToCalories: () -> Unit,
     onNavigateToProfile: () -> Unit,
     // Navigates directly to a specific day's detail screen (deep navigation)
     onNavigateToDayDetail: (String) -> Unit = {}
 ) {
-    // ── State collection (single source of truth via ViewModels) ─────────────
-    val profileState      by profileViewModel.uiState.collectAsState()
-    val plannerState      by mealPlannerViewModel.uiState.collectAsState()
+    // ── State collection (all from a single HomeViewModel) ────────────────────
+    val profile          by viewModel.profile.collectAsState()
+    val weekPlan         by viewModel.weekPlan.collectAsState()
+    val completedDays    by viewModel.completedDaysCount.collectAsState()
+    val totalWeeklyMeals by viewModel.totalWeeklyMeals.collectAsState()
 
-    // ── Derived states collected from ViewModel StateFlows ───────────────────
-    val completedDays     by mealPlannerViewModel.completedDaysCount.collectAsState()
-    val weeklyCalories    by mealPlannerViewModel.totalWeeklyCalories.collectAsState()
-    val totalWeeklyMeals  by mealPlannerViewModel.totalWeeklyMeals.collectAsState()
-
-    val todayIndex        = LocalDate.now().dayOfWeek.value - 1
-    val totalCalToday     = plannerState.weekPlan[HardcodedData.weekDays[todayIndex]]?.totalCalories ?: 0
-    val goalCal           = profileState.profile.dailyCalorieGoal
+    val todayIndex   = LocalDate.now().dayOfWeek.value - 1
+    val totalCalToday = weekPlan[HardcodedData.weekDays[todayIndex]]?.totalCalories ?: 0
+    val goalCal      = profile.dailyCalorieGoal
 
     Scaffold(
         topBar = {
@@ -70,7 +65,7 @@ fun HomeScreen(
                 ) {
                     Column {
                         Text(
-                            "Good day, ${profileState.profile.name}! 👋",
+                            "Good day, ${profile.name}! 👋",
                             fontSize   = 20.sp,
                             fontWeight = FontWeight.Bold,
                             color      = Color.White
@@ -122,7 +117,7 @@ fun HomeScreen(
             // ── Weekly progress card ─────────────────────────────────────────
             item {
                 WeeklyProgressCard(
-                    weekPlan      = plannerState.weekPlan,
+                    weekPlan      = weekPlan,
                     completedDays = completedDays,
                     weeklyMeals   = totalWeeklyMeals,
                     onOpenPlanner = onNavigateToPlanner,
@@ -158,7 +153,7 @@ fun HomeScreen(
                 )
                 Spacer(Modifier.height(10.dp))
                 WeekDayHighlightsRow(
-                    weekPlan   = plannerState.weekPlan,
+                    weekPlan   = weekPlan,
                     onDayClick = onNavigateToDayDetail   // navigates directly to that day
                 )
                 Spacer(Modifier.height(20.dp))
