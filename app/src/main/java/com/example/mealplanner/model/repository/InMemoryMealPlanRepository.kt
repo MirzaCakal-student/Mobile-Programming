@@ -7,27 +7,33 @@ import com.example.mealplanner.model.MealSlotType
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * In-memory repository that acts as the single source of truth for the weekly meal plan.
  *
- * All ViewModels that need to read or modify meal plan data go through here —
- * never manipulate the data directly inside a composable.
+ * Annotated with @Singleton so Hilt provides one shared instance across the entire app,
+ * preserving the same shared-state semantics as the previous Kotlin object singleton.
+ *
+ * All ViewModels that need to read or modify meal plan data inject this class —
+ * they never manipulate data directly inside a composable.
  *
  * Uses copy-on-write for DayPlan objects so StateFlow always emits on change:
- *   - old.copy(breakfast = (old.breakfast + meal).toMutableList()) creates a new DayPlan
- *   - the new map reference triggers StateFlow emission correctly
+ *   old.copy(breakfast = (old.breakfast + meal).toMutableList()) creates a new DayPlan,
+ *   and a new map reference triggers StateFlow emission correctly.
  *
- * NOTE: Will be replaced by a Room-backed repository in Assignment 3 Part C.
+ * NOTE: Will be replaced by a Room-backed repository in Assignment 3 Part C/E.
  */
-object InMemoryMealPlanRepository {
+@Singleton
+class InMemoryMealPlanRepository @Inject constructor() {
 
     private val _weekPlan = MutableStateFlow(HardcodedData.buildEmptyWeekPlan())
     val weekPlan: StateFlow<Map<String, DayPlan>> = _weekPlan.asStateFlow()
 
     private var _nextCustomId = 1000
 
-    /** Returns a unique ID for each user-created meal. */
+    /** Returns a unique ID for each user-created meal or recipe. */
     fun nextCustomId(): Int = _nextCustomId++
 
     // ── Write operations ──────────────────────────────────────────────────────

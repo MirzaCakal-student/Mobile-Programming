@@ -1,10 +1,12 @@
 package com.example.mealplanner.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import javax.inject.Inject
 
 // ── UI State ──────────────────────────────────────────────────────────────────
 
@@ -23,7 +25,8 @@ data class SignUpUiState(
 
 // ── ViewModel — scoped to SignUpScreen ────────────────────────────────────────
 
-class SignUpViewModel : ViewModel() {
+@HiltViewModel
+class SignUpViewModel @Inject constructor() : ViewModel() {
 
     private val _uiState = MutableStateFlow(SignUpUiState())
     val uiState: StateFlow<SignUpUiState> = _uiState.asStateFlow()
@@ -35,10 +38,10 @@ class SignUpViewModel : ViewModel() {
 
     fun onSubmit() {
         val s = _uiState.value
-        val nameErr    = if (s.name.isBlank())                       "Name is required"       else null
-        val emailErr   = if (s.email.isBlank() || !s.email.contains("@")) "Enter a valid email" else null
-        val passErr    = if (s.password.length < 6)                  "Minimum 6 characters"   else null
-        val confirmErr = if (s.confirmPassword != s.password)        "Passwords do not match" else null
+        val nameErr    = if (s.name.isBlank())                            "Name is required"       else null
+        val emailErr   = if (s.email.isBlank() || !s.email.contains("@")) "Enter a valid email"    else null
+        val passErr    = if (s.password.length < 6)                       "Minimum 6 characters"   else null
+        val confirmErr = if (s.confirmPassword != s.password)             "Passwords do not match" else null
 
         if (listOf(nameErr, emailErr, passErr, confirmErr).any { it != null }) {
             _uiState.update {

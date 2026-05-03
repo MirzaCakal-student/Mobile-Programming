@@ -4,6 +4,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import com.example.mealplanner.model.Meal
 import com.example.mealplanner.model.repository.InMemoryMealPlanRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 
 // ── ViewModel — scoped to RecipeBuilderScreen ─────────────────────────────────
 
@@ -15,8 +17,14 @@ import com.example.mealplanner.model.repository.InMemoryMealPlanRepository
  * RecipeBuilderScreen because they are ephemeral form state that does not need to
  * survive configuration changes. This ViewModel's sole responsibility is to persist
  * the finished recipe to the shared meal plan repository.
+ *
+ * [InMemoryMealPlanRepository] is injected by Hilt.
  */
-class RecipeBuilderViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
+@HiltViewModel
+class RecipeBuilderViewModel @Inject constructor(
+    savedStateHandle: SavedStateHandle,
+    private val repository: InMemoryMealPlanRepository
+) : ViewModel() {
 
     private val dayName:  String = checkNotNull(savedStateHandle["dayName"])
     private val slotName: String = checkNotNull(savedStateHandle["slotName"])
@@ -33,7 +41,7 @@ class RecipeBuilderViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
         carbsG: Double
     ) {
         val meal = Meal(
-            id       = InMemoryMealPlanRepository.nextCustomId(),
+            id       = repository.nextCustomId(),
             name     = name,
             calories = calories,
             proteinG = proteinG,
@@ -41,6 +49,6 @@ class RecipeBuilderViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
             carbsG   = carbsG,
             isCustom = true
         )
-        InMemoryMealPlanRepository.addMeal(dayName, slotName, meal)
+        repository.addMeal(dayName, slotName, meal)
     }
 }

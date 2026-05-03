@@ -3,22 +3,24 @@ package com.example.mealplanner.presentation.viewmodel
 import androidx.lifecycle.ViewModel
 import com.example.mealplanner.model.UserProfile
 import com.example.mealplanner.model.repository.InMemoryProfileRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import javax.inject.Inject
 
 // ── UI State ──────────────────────────────────────────────────────────────────
 
 data class ProfileUiState(
-    val profile: UserProfile     = InMemoryProfileRepository.profile.value,
-    val nameInput: String        = InMemoryProfileRepository.profile.value.name,
-    val emailInput: String       = InMemoryProfileRepository.profile.value.email,
+    val profile: UserProfile     = UserProfile(),
+    val nameInput: String        = "",
+    val emailInput: String       = "",
     val weightInput: String      = "",
     val heightInput: String      = "",
     val ageInput: String         = "",
-    val calorieGoalInput: String = InMemoryProfileRepository.profile.value.dailyCalorieGoal.toString(),
-    val gender: String           = InMemoryProfileRepository.profile.value.gender,
+    val calorieGoalInput: String = "2000",
+    val gender: String           = "Male",
     val isSaved: Boolean         = false,
     val nameError: String?       = null,
     val emailError: String?      = null
@@ -26,9 +28,23 @@ data class ProfileUiState(
 
 // ── ViewModel — scoped to ProfileScreen ──────────────────────────────────────
 
-class ProfileViewModel : ViewModel() {
+@HiltViewModel
+class ProfileViewModel @Inject constructor(
+    private val profileRepository: InMemoryProfileRepository
+) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(ProfileUiState())
+    private val _uiState = MutableStateFlow(
+        // Initialise form fields from the injected repository's current value
+        profileRepository.profile.value.let { p ->
+            ProfileUiState(
+                profile          = p,
+                nameInput        = p.name,
+                emailInput       = p.email,
+                calorieGoalInput = p.dailyCalorieGoal.toString(),
+                gender           = p.gender
+            )
+        }
+    )
     val uiState: StateFlow<ProfileUiState> = _uiState.asStateFlow()
 
     fun onNameChange(v: String)        { _uiState.update { it.copy(nameInput        = v, nameError  = null) } }
@@ -41,8 +57,8 @@ class ProfileViewModel : ViewModel() {
 
     fun onSaveProfile() {
         val s = _uiState.value
-        val nameErr  = if (s.nameInput.isBlank())       "Name is required"      else null
-        val emailErr = if (!s.emailInput.contains("@")) "Valid email required"   else null
+        val nameErr  = if (s.nameInput.isBlank())       "Name is required"    else null
+        val emailErr = if (!s.emailInput.contains("@")) "Valid email required" else null
 
         if (nameErr != null || emailErr != null) {
             _uiState.update { it.copy(nameError = nameErr, emailError = emailErr) }
@@ -59,7 +75,7 @@ class ProfileViewModel : ViewModel() {
             gender           = s.gender
         )
         // Write to repository so HomeViewModel's profile StateFlow updates automatically
-        InMemoryProfileRepository.save(updated)
+        profileRepository.save(updated)
         _uiState.update { it.copy(profile = updated, isSaved = true) }
     }
 
