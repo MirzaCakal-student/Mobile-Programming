@@ -15,17 +15,52 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.mealplanner.presentation.ui.components.AppTextField
 import com.example.mealplanner.presentation.ui.components.MealPlannerTopBar
 import com.example.mealplanner.presentation.ui.components.PrimaryButton
 import com.example.mealplanner.presentation.ui.components.SecondaryButton
 import com.example.mealplanner.presentation.ui.components.SectionHeader
+import com.example.mealplanner.presentation.viewmodel.CaloriesFormState
+import com.example.mealplanner.presentation.viewmodel.CaloriesUiState
 import com.example.mealplanner.presentation.viewmodel.CaloriesViewModel
 
 @Composable
 fun CaloriesCalculatorScreen(viewModel: CaloriesViewModel) {
-    val state by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
+    when (val s = uiState) {
+        CaloriesUiState.Init -> {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        }
+        is CaloriesUiState.Form -> CaloriesCalculatorContent(
+            form             = s.form,
+            activityOptions  = viewModel.activityOptions,
+            onWeightChange   = viewModel::onWeightChange,
+            onHeightChange   = viewModel::onHeightChange,
+            onAgeChange      = viewModel::onAgeChange,
+            onGenderChange   = viewModel::onGenderChange,
+            onActivityChange = viewModel::onActivityChange,
+            onCalculate      = viewModel::onCalculate,
+            onReset          = viewModel::onReset
+        )
+    }
+}
+
+@Composable
+fun CaloriesCalculatorContent(
+    form: CaloriesFormState,
+    activityOptions: List<String>,
+    onWeightChange: (String) -> Unit,
+    onHeightChange: (String) -> Unit,
+    onAgeChange: (String) -> Unit,
+    onGenderChange: (String) -> Unit,
+    onActivityChange: (String) -> Unit,
+    onCalculate: () -> Unit,
+    onReset: () -> Unit
+) {
     Scaffold(
         topBar = { MealPlannerTopBar(title = "Calorie Calculator") }
     ) { padding ->
@@ -53,23 +88,23 @@ fun CaloriesCalculatorScreen(viewModel: CaloriesViewModel) {
             }
 
             SectionHeader("Your Details")
-            GenderSelector(selected = state.gender, onSelect = viewModel::onGenderChange)
+            GenderSelector(selected = form.gender, onSelect = onGenderChange)
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 AppTextField(
-                    value         = state.weight,
-                    onValueChange = viewModel::onWeightChange,
+                    value         = form.weight,
+                    onValueChange = onWeightChange,
                     label         = "Weight (kg)",
-                    errorMessage  = state.weightError,
+                    errorMessage  = form.weightError,
                     keyboardType  = KeyboardType.Decimal,
                     modifier      = Modifier.weight(1f),
                     placeholder   = "70"
                 )
                 AppTextField(
-                    value         = state.height,
-                    onValueChange = viewModel::onHeightChange,
+                    value         = form.height,
+                    onValueChange = onHeightChange,
                     label         = "Height (cm)",
-                    errorMessage  = state.heightError,
+                    errorMessage  = form.heightError,
                     keyboardType  = KeyboardType.Decimal,
                     modifier      = Modifier.weight(1f),
                     placeholder   = "175"
@@ -77,32 +112,32 @@ fun CaloriesCalculatorScreen(viewModel: CaloriesViewModel) {
             }
 
             AppTextField(
-                value         = state.age,
-                onValueChange = viewModel::onAgeChange,
+                value         = form.age,
+                onValueChange = onAgeChange,
                 label         = "Age (years)",
-                errorMessage  = state.ageError,
+                errorMessage  = form.ageError,
                 keyboardType  = KeyboardType.Number,
                 placeholder   = "25"
             )
 
             ActivityDropdown(
-                selected = state.activityLevel,
-                options  = viewModel.activityOptions,
-                onSelect = viewModel::onActivityChange
+                selected = form.activityLevel,
+                options  = activityOptions,
+                onSelect = onActivityChange
             )
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 PrimaryButton(
                     text     = "Calculate",
-                    onClick  = viewModel::onCalculate,
-                    enabled  = state.weight.isNotBlank() && state.height.isNotBlank() && state.age.isNotBlank(),
+                    onClick  = onCalculate,
+                    enabled  = form.weight.isNotBlank() && form.height.isNotBlank() && form.age.isNotBlank(),
                     modifier = Modifier.weight(1f)
                 )
-                SecondaryButton(text = "Reset", onClick = viewModel::onReset, modifier = Modifier.weight(1f))
+                SecondaryButton(text = "Reset", onClick = onReset, modifier = Modifier.weight(1f))
             }
 
-            if (state.bmr != null && state.tdee != null) {
-                CaloriesResultSection(bmr = state.bmr!!, tdee = state.tdee!!)
+            if (form.bmr != null && form.tdee != null) {
+                CaloriesResultSection(bmr = form.bmr, tdee = form.tdee)
             }
 
             Spacer(Modifier.height(16.dp))

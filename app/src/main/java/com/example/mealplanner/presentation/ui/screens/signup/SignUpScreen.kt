@@ -18,9 +18,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.mealplanner.presentation.ui.components.AppTextField
 import com.example.mealplanner.presentation.ui.components.MealPlannerTopBar
 import com.example.mealplanner.presentation.ui.components.PrimaryButton
+import com.example.mealplanner.presentation.viewmodel.SignUpNavigationEvent
+import com.example.mealplanner.presentation.viewmodel.SignUpUiState
 import com.example.mealplanner.presentation.viewmodel.SignUpViewModel
 
 @Composable
@@ -29,17 +32,19 @@ fun SignUpScreen(
     onSignUpSuccess: () -> Unit,
     onNavigateToLogin: () -> Unit
 ) {
-    val state by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    LaunchedEffect(state.signUpSuccess) {
-        if (state.signUpSuccess) {
-            viewModel.resetSignUpSuccess()
-            onSignUpSuccess()
+    LaunchedEffect(Unit) {
+        viewModel.navEvents.collect { event ->
+            when (event) {
+                SignUpNavigationEvent.NavigateToMain  -> onSignUpSuccess()
+                SignUpNavigationEvent.NavigateToLogin -> onNavigateToLogin()
+            }
         }
     }
 
     Scaffold(
-        topBar = { MealPlannerTopBar(title = "Create Account", onBack = onNavigateToLogin) }
+        topBar = { MealPlannerTopBar(title = "Create Account", onBack = viewModel::onNavigateToLogin) }
     ) { padding ->
         Column(
             modifier = Modifier
@@ -55,36 +60,61 @@ fun SignUpScreen(
             Text("Create your free account below", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f))
             Spacer(Modifier.height(28.dp))
 
-            Card(
-                shape     = RoundedCornerShape(20.dp),
-                colors    = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(4.dp),
-                modifier  = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(22.dp)) {
-                    SignUpForm(
-                        name             = state.name,
-                        email            = state.email,
-                        password         = state.password,
-                        confirmPassword  = state.confirmPassword,
-                        nameError        = state.nameError,
-                        emailError       = state.emailError,
-                        passwordError    = state.passwordError,
-                        confirmPassError = state.confirmPasswordError,
-                        isLoading        = state.isLoading,
-                        onNameChange     = viewModel::onNameChange,
-                        onEmailChange    = viewModel::onEmailChange,
-                        onPasswordChange = viewModel::onPasswordChange,
-                        onConfirmChange  = viewModel::onConfirmPasswordChange,
-                        onSubmit         = viewModel::onSubmit
-                    )
+            when (val s = uiState) {
+                is SignUpUiState.Form -> {
+                    Card(
+                        shape     = RoundedCornerShape(20.dp),
+                        colors    = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(4.dp),
+                        modifier  = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(22.dp)) {
+                            SignUpForm(
+                                name             = s.name,
+                                email            = s.email,
+                                password         = s.password,
+                                confirmPassword  = s.confirmPassword,
+                                nameError        = s.nameError,
+                                emailError       = s.emailError,
+                                passwordError    = s.passwordError,
+                                confirmPassError = s.confirmPasswordError,
+                                isLoading        = false,
+                                onNameChange     = viewModel::onNameChange,
+                                onEmailChange    = viewModel::onEmailChange,
+                                onPasswordChange = viewModel::onPasswordChange,
+                                onConfirmChange  = viewModel::onConfirmPasswordChange,
+                                onSubmit         = viewModel::onSubmit
+                            )
+                        }
+                    }
                 }
+                SignUpUiState.Loading -> {
+                    Card(
+                        shape     = RoundedCornerShape(20.dp),
+                        colors    = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(4.dp),
+                        modifier  = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(22.dp)) {
+                            SignUpForm(
+                                name = "", email = "", password = "", confirmPassword = "",
+                                nameError = null, emailError = null, passwordError = null, confirmPassError = null,
+                                isLoading = true,
+                                onNameChange = {}, onEmailChange = {}, onPasswordChange = {}, onConfirmChange = {}, onSubmit = {}
+                            )
+                        }
+                    }
+                }
+                is SignUpUiState.Error -> {
+                    Text(s.message, color = MaterialTheme.colorScheme.error)
+                }
+                SignUpUiState.Init -> Unit
             }
 
             Spacer(Modifier.height(20.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Already have an account?", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
-                TextButton(onClick = onNavigateToLogin) {
+                TextButton(onClick = viewModel::onNavigateToLogin) {
                     Text("Log In", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 }
             }

@@ -7,17 +7,23 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.mealplanner.model.Meal
 import com.example.mealplanner.presentation.ui.components.AppSearchBar
 import com.example.mealplanner.presentation.ui.components.AppTextField
 import com.example.mealplanner.presentation.ui.components.EmptyState
 import com.example.mealplanner.presentation.ui.components.MealListItem
 import com.example.mealplanner.presentation.ui.components.MealPlannerTopBar
 import com.example.mealplanner.presentation.ui.components.PrimaryButton
+import com.example.mealplanner.presentation.viewmodel.AddMealFormState
+import com.example.mealplanner.presentation.viewmodel.AddMealNavigationEvent
+import com.example.mealplanner.presentation.viewmodel.AddMealUiState
 import com.example.mealplanner.presentation.viewmodel.AddMealViewModel
 
 @Composable
@@ -25,20 +31,59 @@ fun AddMealScreen(
     viewModel: AddMealViewModel,
     onBack: () -> Unit
 ) {
-    val state         by viewModel.uiState.collectAsState()
-    // Derived StateFlow — no filtering logic inside composable
-    val filteredMeals by viewModel.filteredMeals.collectAsState()
-    var selectedTab   by remember { mutableStateOf(0) }
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    LaunchedEffect(state.addSuccess) {
-        if (state.addSuccess) {
-            viewModel.resetAddSuccess()
-            onBack()
+    LaunchedEffect(Unit) {
+        viewModel.navEvents.collect { event ->
+            when (event) {
+                AddMealNavigationEvent.GoBack -> onBack()
+            }
         }
     }
 
+    when (val s = uiState) {
+        AddMealUiState.Init, AddMealUiState.Loading -> {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        }
+        is AddMealUiState.Error -> {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(s.message, color = MaterialTheme.colorScheme.error)
+            }
+        }
+        is AddMealUiState.Success -> AddMealScreenContent(
+            state              = s,
+            onBack             = viewModel::onBack,
+            onSearchQuery      = viewModel::onSearchQueryChange,
+            onAddPremade       = viewModel::addPremadeMeal,
+            onCustomNameChange = viewModel::onCustomNameChange,
+            onCustomCalChange  = viewModel::onCustomCalChange,
+            onCustomProtChange = viewModel::onCustomProteinChange,
+            onCustomFatChange  = viewModel::onCustomFatChange,
+            onCustomCarbChange = viewModel::onCustomCarbsChange,
+            onSubmitCustom     = viewModel::submitCustomMeal
+        )
+    }
+}
+
+@Composable
+fun AddMealScreenContent(
+    state: AddMealUiState.Success,
+    onBack: () -> Unit,
+    onSearchQuery: (String) -> Unit,
+    onAddPremade: (Meal) -> Unit,
+    onCustomNameChange: (String) -> Unit,
+    onCustomCalChange: (String) -> Unit,
+    onCustomProtChange: (String) -> Unit,
+    onCustomFatChange: (String) -> Unit,
+    onCustomCarbChange: (String) -> Unit,
+    onSubmitCustom: () -> Unit
+) {
+    var selectedTab by remember { mutableStateOf(0) }
+
     Scaffold(
-        topBar = { MealPlannerTopBar(title = "Add to ${viewModel.slotName}", onBack = onBack) }
+        topBar = { MealPlannerTopBar(title = "Add to ${state.slotName}", onBack = onBack) }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             TabRow(
@@ -62,25 +107,25 @@ fun AddMealScreen(
 
             when (selectedTab) {
                 0 -> PremadeMealsTab(
-                    query         = state.searchQuery,
-                    onQuery       = viewModel::onSearchQueryChange,
-                    filteredMeals = filteredMeals,
-                    onAdd         = { meal -> viewModel.addPremadeMeal(meal) }
+                    query         = state.form.searchQuery,
+                    onQuery       = onSearchQuery,
+                    filteredMeals = state.filteredMeals,
+                    onAdd         = { meal -> onAddPremade(meal) }
                 )
                 1 -> CustomMealTab(
-                    name          = state.customName,
-                    calories      = state.customCalories,
-                    protein       = state.customProtein,
-                    fat           = state.customFat,
-                    carbs         = state.customCarbs,
-                    nameError     = state.customNameError,
-                    caloriesError = state.customCaloriesError,
-                    onNameChange  = viewModel::onCustomNameChange,
-                    onCalChange   = viewModel::onCustomCalChange,
-                    onProtChange  = viewModel::onCustomProteinChange,
-                    onFatChange   = viewModel::onCustomFatChange,
-                    onCarbChange  = viewModel::onCustomCarbsChange,
-                    onSubmit      = viewModel::submitCustomMeal
+                    name          = state.form.customName,
+                    calories      = state.form.customCalories,
+                    protein       = state.form.customProtein,
+                    fat           = state.form.customFat,
+                    carbs         = state.form.customCarbs,
+                    nameError     = state.form.customNameError,
+                    caloriesError = state.form.customCaloriesError,
+                    onNameChange  = onCustomNameChange,
+                    onCalChange   = onCustomCalChange,
+                    onProtChange  = onCustomProtChange,
+                    onFatChange   = onCustomFatChange,
+                    onCarbChange  = onCustomCarbChange,
+                    onSubmit      = onSubmitCustom
                 )
             }
         }
@@ -93,8 +138,8 @@ fun AddMealScreen(
 fun PremadeMealsTab(
     query: String,
     onQuery: (String) -> Unit,
-    filteredMeals: List<com.example.mealplanner.model.Meal>,
-    onAdd: (com.example.mealplanner.model.Meal) -> Unit
+    filteredMeals: List<Meal>,
+    onAdd: (Meal) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         AppSearchBar(
@@ -111,7 +156,6 @@ fun PremadeMealsTab(
                 subtitle = "Try a different search term"
             )
         } else {
-            // LazyColumn for pre-made meals — uses reusable MealListItem from components/
             LazyColumn(
                 contentPadding      = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -139,7 +183,6 @@ fun CustomMealTab(
 ) {
     val canSubmit = name.isNotBlank() && calories.isNotBlank()
 
-    // LazyColumn for the custom meal form — handles keyboard scrolling gracefully
     LazyColumn(
         contentPadding      = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)

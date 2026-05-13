@@ -22,9 +22,12 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.mealplanner.presentation.ui.components.AppTextField
 import com.example.mealplanner.presentation.ui.components.LabelDivider
 import com.example.mealplanner.presentation.ui.components.PrimaryButton
+import com.example.mealplanner.presentation.viewmodel.LoginNavigationEvent
+import com.example.mealplanner.presentation.viewmodel.LoginUiState
 import com.example.mealplanner.presentation.viewmodel.LoginViewModel
 
 @Composable
@@ -33,21 +36,21 @@ fun LoginScreen(
     onNavigateToSignUp: () -> Unit,
     onLoginSuccess: () -> Unit
 ) {
-    val state by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    LaunchedEffect(state.loginSuccess) {
-        if (state.loginSuccess) {
-            viewModel.resetLoginSuccess()
-            onLoginSuccess()
+    LaunchedEffect(Unit) {
+        viewModel.navEvents.collect { event ->
+            when (event) {
+                LoginNavigationEvent.NavigateToMain   -> onLoginSuccess()
+                LoginNavigationEvent.NavigateToSignUp -> onNavigateToSignUp()
+            }
         }
     }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(listOf(Color(0xFFE8F5E9), Color(0xFFFFFFFF), Color(0xFFFFFFFF)))
-            )
+            .background(Brush.verticalGradient(listOf(Color(0xFFE8F5E9), Color(0xFFFFFFFF), Color(0xFFFFFFFF))))
     ) {
         Column(
             modifier = Modifier
@@ -59,26 +62,39 @@ fun LoginScreen(
             Spacer(Modifier.height(70.dp))
             LoginHeader()
             Spacer(Modifier.height(44.dp))
-            LoginForm(
-                email            = state.email,
-                password         = state.password,
-                emailError       = state.emailError,
-                passwordError    = state.passwordError,
-                isLoading        = state.isLoading,
-                onEmailChange    = viewModel::onEmailChange,
-                onPasswordChange = viewModel::onPasswordChange,
-                onSubmit         = viewModel::onSubmit
-            )
+
+            when (val s = uiState) {
+                is LoginUiState.Form -> {
+                    LoginForm(
+                        email            = s.email,
+                        password         = s.password,
+                        emailError       = s.emailError,
+                        passwordError    = s.passwordError,
+                        isLoading        = false,
+                        onEmailChange    = viewModel::onEmailChange,
+                        onPasswordChange = viewModel::onPasswordChange,
+                        onSubmit         = viewModel::onSubmit
+                    )
+                }
+                LoginUiState.Loading -> {
+                    LoginForm(
+                        email = "", password = "", emailError = null, passwordError = null,
+                        isLoading = true,
+                        onEmailChange = {}, onPasswordChange = {}, onSubmit = {}
+                    )
+                }
+                is LoginUiState.Error -> {
+                    Text(s.message, color = MaterialTheme.colorScheme.error)
+                }
+                LoginUiState.Init -> Unit
+            }
+
             Spacer(Modifier.height(20.dp))
             LabelDivider("or")
             Spacer(Modifier.height(20.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "Don't have an account?",
-                    fontSize = 14.sp,
-                    color    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                )
-                TextButton(onClick = onNavigateToSignUp) {
+                Text("Don't have an account?", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                TextButton(onClick = viewModel::onNavigateToSignUp) {
                     Text("Sign Up", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 }
             }

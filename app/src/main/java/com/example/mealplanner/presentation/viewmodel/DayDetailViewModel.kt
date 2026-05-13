@@ -4,38 +4,67 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.mealplanner.model.DayPlan
-import com.example.mealplanner.model.repository.InMemoryMealPlanRepository
+import com.example.mealplanner.model.repository.dayplan.DayPlanRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-// ── ViewModel — scoped to DayDetailScreen ────────────────────────────────────
+sealed interface DayDetailUiState {
+    data object Init    : DayDetailUiState
+    data object Loading : DayDetailUiState
+    data class  Success(val dayName: String, val dayPlan: DayPlan) : DayDetailUiState
+    data class  Error(val message: String) : DayDetailUiState
+}
 
-/**
- * Receives [dayName] from [SavedStateHandle] which is automatically populated
- * by Navigation Compose from the route argument "day_detail/{dayName}".
- *
- * [InMemoryMealPlanRepository] is injected by Hilt — same singleton instance
- * shared across all ViewModels, so updates from MealSlot/AddMeal are reflected here.
- */
+sealed interface DayDetailNavigationEvent {
+    data class ToMealSlot(val dayName: String, val slotName: String) : DayDetailNavigationEvent
+    data object GoBack : DayDetailNavigationEvent
+}
+
 @HiltViewModel
 class DayDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val repository: InMemoryMealPlanRepository
+    private val repository: DayPlanRepository
 ) : ViewModel() {
 
-    /** The day this screen is showing — resolved from the navigation argument. */
     val dayName: String = checkNotNull(savedStateHandle["dayName"])
 
-    /** Live plan for this specific day — emits whenever any meal is added or removed. */
-    val dayPlan: StateFlow<DayPlan?> = repository.weekPlan
-        .map { plan -> plan[dayName] }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), null)
+    private val _uiState = MutableStateFlow<DayDetailUiState>(DayDetailUiState.Loading)
+    val uiState: StateFlow<DayDetailUiState> = _uiState.asStateFlow()
+
+    private val _navEvents = Channel<DayDetailNavigationEvent>(Channel.BUFFERED)
+    val navEvents = _navEvents.receiveAsFlow()
+
+    init {
+        viewModelScope.launch {
+            try {
+                repository.observeWeekPlan()
+                    .map { it[dayName] }
+                    .collect { plan ->
+                        _uiState.value = if (plan != null)
+                            DayDetailUiState.Success(dayName, plan)
+                        else
+                            DayDetailUiState.Error("Day '$dayName' not found")
+                    }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { _uiState.value = DayDetailUiState.Error(e.message ?: "Error") }
+        }
+    }
+
+    fun onSlotClick(slotName: String) {
+        viewModelScope.launch { _navEvents.send(DayDetailNavigationEvent.ToMealSlot(dayName, slotName)) }
+    }
+
+    fun onBack() { viewModelScope.launch { _navEvents.send(DayDetailNavigationEvent.GoBack) } }
 
     fun markDayComplete() {
-        repository.markDayComplete(dayName)
+        viewModelScope.launch { repository.markDayComplete(dayName) }
     }
 }

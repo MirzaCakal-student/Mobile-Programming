@@ -3,22 +3,22 @@ package com.example.mealplanner.presentation.viewmodel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.mealplanner.model.HardcodedData
 import com.example.mealplanner.model.Meal
-import com.example.mealplanner.model.repository.InMemoryMealPlanRepository
+import com.example.mealplanner.model.repository.dayplan.DayPlanRepository
+import com.example.mealplanner.model.repository.meal.MealRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-// ── UI State ──────────────────────────────────────────────────────────────────
-
-data class AddMealUiState(
+// Form state embedded in UiState
+data class AddMealFormState(
     val searchQuery: String          = "",
     val customName: String           = "",
     val customCalories: String       = "",
@@ -26,79 +26,100 @@ data class AddMealUiState(
     val customFat: String            = "",
     val customCarbs: String          = "",
     val customNameError: String?     = null,
-    val customCaloriesError: String? = null,
-    val addSuccess: Boolean          = false
+    val customCaloriesError: String? = null
 )
 
-// ── ViewModel — scoped to AddMealScreen ──────────────────────────────────────
+sealed interface AddMealUiState {
+    data object Init    : AddMealUiState
+    data object Loading : AddMealUiState
+    data class  Success(
+        val slotName: String,
+        val allPremadeMeals: List<Meal>,
+        val filteredMeals: List<Meal>,
+        val form: AddMealFormState = AddMealFormState()
+    ) : AddMealUiState
+    data class Error(val message: String) : AddMealUiState
+}
 
-/**
- * Receives [dayName] and [slotName] from [SavedStateHandle] which are automatically
- * populated by Navigation Compose from the route "add_meal/{dayName}/{slotName}".
- *
- * [InMemoryMealPlanRepository] is injected by Hilt.
- */
+sealed interface AddMealNavigationEvent {
+    data object GoBack : AddMealNavigationEvent
+}
+
 @HiltViewModel
 class AddMealViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val repository: InMemoryMealPlanRepository
+    private val dayPlanRepository: DayPlanRepository,
+    private val mealRepository: MealRepository
 ) : ViewModel() {
 
     val slotName: String    = checkNotNull(savedStateHandle["slotName"])
     private val dayName: String = checkNotNull(savedStateHandle["dayName"])
 
-    private val _uiState = MutableStateFlow(AddMealUiState())
+    private val _uiState = MutableStateFlow<AddMealUiState>(AddMealUiState.Loading)
     val uiState: StateFlow<AddMealUiState> = _uiState.asStateFlow()
 
-    // ── Derived StateFlow — filtered meals (no filtering logic in the composable) ──
+    private val _navEvents = Channel<AddMealNavigationEvent>(Channel.BUFFERED)
+    val navEvents = _navEvents.receiveAsFlow()
 
-    val filteredMeals: StateFlow<List<Meal>> = _uiState
-        .map { state ->
-            val q = state.searchQuery.trim()
-            if (q.isBlank()) HardcodedData.premadeMeals
-            else HardcodedData.premadeMeals.filter { it.name.contains(q, ignoreCase = true) }
+    private var allPremadeMeals: List<Meal> = emptyList()
+
+    init {
+        viewModelScope.launch {
+            try {
+                allPremadeMeals = mealRepository.getAllPremadeMeals()
+                _uiState.value = AddMealUiState.Success(
+                    slotName        = slotName,
+                    allPremadeMeals = allPremadeMeals,
+                    filteredMeals   = allPremadeMeals
+                )
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { _uiState.value = AddMealUiState.Error(e.message ?: "Error") }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), HardcodedData.premadeMeals)
+    }
 
-    // ── Input handlers ────────────────────────────────────────────────────────
+    fun onSearchQueryChange(v: String) {
+        val s = _uiState.value as? AddMealUiState.Success ?: return
+        val filtered = if (v.isBlank()) allPremadeMeals
+                       else allPremadeMeals.filter { it.name.contains(v, ignoreCase = true) }
+        _uiState.value = s.copy(form = s.form.copy(searchQuery = v), filteredMeals = filtered)
+    }
 
-    fun onSearchQueryChange(v: String)   { _uiState.update { it.copy(searchQuery    = v) } }
-    fun onCustomNameChange(v: String)    { _uiState.update { it.copy(customName     = v, customNameError     = null) } }
-    fun onCustomCalChange(v: String)     { _uiState.update { it.copy(customCalories = v, customCaloriesError = null) } }
-    fun onCustomProteinChange(v: String) { _uiState.update { it.copy(customProtein  = v) } }
-    fun onCustomFatChange(v: String)     { _uiState.update { it.copy(customFat      = v) } }
-    fun onCustomCarbsChange(v: String)   { _uiState.update { it.copy(customCarbs    = v) } }
-
-    // ── Actions ───────────────────────────────────────────────────────────────
+    fun onCustomNameChange(v: String)    { val s = _uiState.value as? AddMealUiState.Success ?: return; _uiState.value = s.copy(form = s.form.copy(customName     = v, customNameError     = null)) }
+    fun onCustomCalChange(v: String)     { val s = _uiState.value as? AddMealUiState.Success ?: return; _uiState.value = s.copy(form = s.form.copy(customCalories = v, customCaloriesError = null)) }
+    fun onCustomProteinChange(v: String) { val s = _uiState.value as? AddMealUiState.Success ?: return; _uiState.value = s.copy(form = s.form.copy(customProtein  = v)) }
+    fun onCustomFatChange(v: String)     { val s = _uiState.value as? AddMealUiState.Success ?: return; _uiState.value = s.copy(form = s.form.copy(customFat      = v)) }
+    fun onCustomCarbsChange(v: String)   { val s = _uiState.value as? AddMealUiState.Success ?: return; _uiState.value = s.copy(form = s.form.copy(customCarbs    = v)) }
 
     fun addPremadeMeal(meal: Meal) {
-        repository.addMeal(dayName, slotName, meal)
-        _uiState.update { it.copy(addSuccess = true) }
+        viewModelScope.launch {
+            dayPlanRepository.addMealToSlot(dayName, slotName, meal)
+            _navEvents.send(AddMealNavigationEvent.GoBack)
+        }
     }
 
     fun submitCustomMeal() {
-        val s = _uiState.value
-        val nameErr = if (s.customName.isBlank()) "Meal name is required" else null
-        val calErr  = if (s.customCalories.toIntOrNull()?.let { it > 0 } != true)
-            "Enter a valid calorie amount" else null
-
+        val s = _uiState.value as? AddMealUiState.Success ?: return
+        val f = s.form
+        val nameErr = if (f.customName.isBlank()) "Meal name is required" else null
+        val calErr  = if (f.customCalories.toIntOrNull()?.let { it > 0 } != true) "Enter a valid calorie amount" else null
         if (nameErr != null || calErr != null) {
-            _uiState.update { it.copy(customNameError = nameErr, customCaloriesError = calErr) }
+            _uiState.value = s.copy(form = f.copy(customNameError = nameErr, customCaloriesError = calErr))
             return
         }
-
-        val meal = Meal(
-            id       = repository.nextCustomId(),
-            name     = s.customName.trim(),
-            calories = s.customCalories.toInt(),
-            proteinG = s.customProtein.toDoubleOrNull() ?: 0.0,
-            fatG     = s.customFat.toDoubleOrNull()     ?: 0.0,
-            carbsG   = s.customCarbs.toDoubleOrNull()   ?: 0.0,
-            isCustom = true
-        )
-        repository.addMeal(dayName, slotName, meal)
-        _uiState.update { AddMealUiState(addSuccess = true) }
+        viewModelScope.launch {
+            val meal = Meal(
+                id       = 0,
+                name     = f.customName.trim(),
+                calories = f.customCalories.toInt(),
+                proteinG = f.customProtein.toDoubleOrNull() ?: 0.0,
+                fatG     = f.customFat.toDoubleOrNull()     ?: 0.0,
+                carbsG   = f.customCarbs.toDoubleOrNull()   ?: 0.0,
+                isCustom = true
+            )
+            dayPlanRepository.addMealToSlot(dayName, slotName, meal)
+            _navEvents.send(AddMealNavigationEvent.GoBack)
+        }
     }
 
-    fun resetAddSuccess() { _uiState.update { it.copy(addSuccess = false) } }
+    fun onBack() { viewModelScope.launch { _navEvents.send(AddMealNavigationEvent.GoBack) } }
 }

@@ -5,26 +5,35 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.mealplanner.model.Meal
 import com.example.mealplanner.model.MealSlotType
-import com.example.mealplanner.model.repository.InMemoryMealPlanRepository
+import com.example.mealplanner.model.repository.dayplan.DayPlanRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-// ── ViewModel — scoped to MealSlotScreen ─────────────────────────────────────
+sealed interface MealSlotUiState {
+    data object Init    : MealSlotUiState
+    data object Loading : MealSlotUiState
+    data class  Success(val slotName: String, val meals: List<Meal>) : MealSlotUiState
+    data class  Error(val message: String) : MealSlotUiState
+}
 
-/**
- * Receives [dayName] and [slotName] from [SavedStateHandle] which are automatically
- * populated by Navigation Compose from the route "meal_slot/{dayName}/{slotName}".
- *
- * [InMemoryMealPlanRepository] is injected by Hilt.
- */
+sealed interface MealSlotNavigationEvent {
+    data object ToAddMeal    : MealSlotNavigationEvent
+    data object ToAddRecipe  : MealSlotNavigationEvent
+    data object GoBack       : MealSlotNavigationEvent
+}
+
 @HiltViewModel
 class MealSlotViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val repository: InMemoryMealPlanRepository
+    private val repository: DayPlanRepository
 ) : ViewModel() {
 
     val dayName:  String = checkNotNull(savedStateHandle["dayName"])
@@ -34,15 +43,31 @@ class MealSlotViewModel @Inject constructor(
         it.displayName.equals(slotName, ignoreCase = true)
     }
 
-    /** All meals currently in this slot — updates reactively when meals are added or removed. */
-    val meals: StateFlow<List<Meal>> = repository.weekPlan
-        .map { plan ->
-            val dayPlan = plan[dayName] ?: return@map emptyList()
-            slotType?.let { dayPlan.mealsForSlot(it) } ?: emptyList()
+    private val _uiState = MutableStateFlow<MealSlotUiState>(MealSlotUiState.Loading)
+    val uiState: StateFlow<MealSlotUiState> = _uiState.asStateFlow()
+
+    private val _navEvents = Channel<MealSlotNavigationEvent>(Channel.BUFFERED)
+    val navEvents = _navEvents.receiveAsFlow()
+
+    init {
+        viewModelScope.launch {
+            try {
+                repository.observeWeekPlan()
+                    .map { plan ->
+                        val dayPlan = plan[dayName]
+                        slotType?.let { dayPlan?.mealsForSlot(it) } ?: emptyList()
+                    }
+                    .collect { meals -> _uiState.value = MealSlotUiState.Success(slotName, meals) }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { _uiState.value = MealSlotUiState.Error(e.message ?: "Error") }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyList())
+    }
 
     fun removeMeal(meal: Meal) {
-        repository.removeMeal(dayName, slotName, meal)
+        viewModelScope.launch { repository.removeMealFromSlot(dayName, slotName, meal) }
     }
+
+    fun onAddMeal()   { viewModelScope.launch { _navEvents.send(MealSlotNavigationEvent.ToAddMeal) } }
+    fun onAddRecipe() { viewModelScope.launch { _navEvents.send(MealSlotNavigationEvent.ToAddRecipe) } }
+    fun onBack()      { viewModelScope.launch { _navEvents.send(MealSlotNavigationEvent.GoBack) } }
 }

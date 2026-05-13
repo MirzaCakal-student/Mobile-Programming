@@ -13,11 +13,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.mealplanner.model.Meal
 import com.example.mealplanner.presentation.ui.components.EmptyState
 import com.example.mealplanner.presentation.ui.components.MacroChip
 import com.example.mealplanner.presentation.ui.components.MealListItem
 import com.example.mealplanner.presentation.ui.components.MealPlannerTopBar
+import com.example.mealplanner.presentation.viewmodel.MealSlotNavigationEvent
+import com.example.mealplanner.presentation.viewmodel.MealSlotUiState
 import com.example.mealplanner.presentation.viewmodel.MealSlotViewModel
 
 @Composable
@@ -27,33 +30,72 @@ fun MealSlotScreen(
     onAddRecipe: () -> Unit,
     onBack: () -> Unit
 ) {
-    val meals by viewModel.meals.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
+    LaunchedEffect(Unit) {
+        viewModel.navEvents.collect { event ->
+            when (event) {
+                MealSlotNavigationEvent.ToAddMeal   -> onAddMeal()
+                MealSlotNavigationEvent.ToAddRecipe -> onAddRecipe()
+                MealSlotNavigationEvent.GoBack      -> onBack()
+            }
+        }
+    }
+
+    when (val s = uiState) {
+        MealSlotUiState.Init, MealSlotUiState.Loading -> {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        }
+        is MealSlotUiState.Error -> {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(s.message, color = MaterialTheme.colorScheme.error)
+            }
+        }
+        is MealSlotUiState.Success -> MealSlotScreenContent(
+            state       = s,
+            dayName     = viewModel.dayName,
+            onRemoveMeal = viewModel::removeMeal,
+            onAddMeal   = viewModel::onAddMeal,
+            onAddRecipe = viewModel::onAddRecipe,
+            onBack      = viewModel::onBack
+        )
+    }
+}
+
+@Composable
+fun MealSlotScreenContent(
+    state: MealSlotUiState.Success,
+    dayName: String,
+    onRemoveMeal: (Meal) -> Unit,
+    onAddMeal: () -> Unit,
+    onAddRecipe: () -> Unit,
+    onBack: () -> Unit
+) {
     Scaffold(
-        topBar    = { MealPlannerTopBar(title = "${viewModel.dayName} — ${viewModel.slotName}", onBack = onBack) },
+        topBar    = { MealPlannerTopBar(title = "$dayName — ${state.slotName}", onBack = onBack) },
         bottomBar = { SlotActionBar(onAddMeal = onAddMeal, onAddRecipe = onAddRecipe) }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            SlotTotalsHeader(meals = meals)
+            SlotTotalsHeader(meals = state.meals)
 
-            if (meals.isEmpty()) {
+            if (state.meals.isEmpty()) {
                 EmptyState(
                     emoji    = "🍽",
                     title    = "No meals yet",
-                    subtitle = "Tap 'Add Pre-made Meal' or 'Build Recipe' below to plan your ${viewModel.slotName}"
+                    subtitle = "Tap 'Add Pre-made Meal' or 'Build Recipe' below to plan your ${state.slotName}"
                 )
             } else {
-                // LazyColumn — scrollable list of meals in this slot
                 LazyColumn(
                     contentPadding      = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    items(meals, key = { it.id }) { meal ->
-                        // Uses reusable MealListItem from components/
+                    items(state.meals, key = { it.id }) { meal ->
                         MealListItem(
-                            meal                    = meal,
-                            onRemove                = { viewModel.removeMeal(meal) },
-                            showDeleteConfirmDialog  = true
+                            meal                   = meal,
+                            onRemove               = { onRemoveMeal(meal) },
+                            showDeleteConfirmDialog = true
                         )
                     }
                 }

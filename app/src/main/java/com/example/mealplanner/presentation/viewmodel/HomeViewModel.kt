@@ -3,44 +3,82 @@ package com.example.mealplanner.presentation.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.mealplanner.model.DayPlan
+import com.example.mealplanner.model.Meal
 import com.example.mealplanner.model.UserProfile
-import com.example.mealplanner.model.repository.InMemoryMealPlanRepository
-import com.example.mealplanner.model.repository.InMemoryProfileRepository
+import com.example.mealplanner.model.repository.dayplan.DayPlanRepository
+import com.example.mealplanner.model.repository.meal.MealRepository
+import com.example.mealplanner.model.repository.profile.UserProfileRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-// ── ViewModel — scoped to HomeScreen ─────────────────────────────────────────
+sealed interface HomeUiState {
+    data object Init    : HomeUiState
+    data object Loading : HomeUiState
+    data class  Success(
+        val weekPlan: Map<String, DayPlan>,
+        val profile: UserProfile,
+        val suggestedMeals: List<Meal>,
+        val completedDaysCount: Int,
+        val totalWeeklyCalories: Int,
+        val totalWeeklyMeals: Int
+    ) : HomeUiState
+    data class Error(val message: String) : HomeUiState
+}
+
+sealed interface HomeNavigationEvent {
+    data object ToPlanner         : HomeNavigationEvent
+    data object ToCalories        : HomeNavigationEvent
+    data object ToProfile         : HomeNavigationEvent
+    data class  ToDayDetail(val dayName: String) : HomeNavigationEvent
+}
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val mealPlanRepository: InMemoryMealPlanRepository,
-    private val profileRepository: InMemoryProfileRepository
+    private val dayPlanRepository: DayPlanRepository,
+    private val profileRepository: UserProfileRepository,
+    private val mealRepository: MealRepository
 ) : ViewModel() {
 
-    /** Logged-in user's profile (name, calorie goal, etc.). */
-    val profile: StateFlow<UserProfile> = profileRepository.profile
+    private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
+    val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
-    /** Full week plan — reactive to any meal additions or day completions. */
-    val weekPlan: StateFlow<Map<String, DayPlan>> = mealPlanRepository.weekPlan
+    private val _navEvents = Channel<HomeNavigationEvent>(Channel.BUFFERED)
+    val navEvents = _navEvents.receiveAsFlow()
 
-    // ── Derived StateFlows (computed — never stored separately) ───────────────
+    init {
+        viewModelScope.launch {
+            _uiState.value = HomeUiState.Loading
+            try {
+                val suggestedMeals = mealRepository.getAllPremadeMeals().take(8)
+                combine(
+                    dayPlanRepository.observeWeekPlan(),
+                    profileRepository.observe()
+                ) { weekPlan, profile ->
+                    val safeProfile = profile ?: UserProfile()
+                    HomeUiState.Success(
+                        weekPlan             = weekPlan,
+                        profile              = safeProfile,
+                        suggestedMeals       = suggestedMeals,
+                        completedDaysCount   = weekPlan.values.count { it.isComplete },
+                        totalWeeklyCalories  = weekPlan.values.sumOf { it.totalCalories },
+                        totalWeeklyMeals     = weekPlan.values.sumOf { it.totalMealCount }
+                    )
+                }.collect { state -> _uiState.value = state }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { _uiState.value = HomeUiState.Error(e.message ?: "Failed to load home data") }
+        }
+    }
 
-    /** Number of days the user has marked as complete this week. */
-    val completedDaysCount: StateFlow<Int> = mealPlanRepository.weekPlan
-        .map { plan -> plan.values.count { it.isComplete } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), 0)
-
-    /** Sum of all calories logged across the entire week. */
-    val totalWeeklyCalories: StateFlow<Int> = mealPlanRepository.weekPlan
-        .map { plan -> plan.values.sumOf { it.totalCalories } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), 0)
-
-    /** Total number of meals logged across all days this week. */
-    val totalWeeklyMeals: StateFlow<Int> = mealPlanRepository.weekPlan
-        .map { plan -> plan.values.sumOf { it.totalMealCount } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), 0)
+    fun onNavigateToPlanner()         { viewModelScope.launch { _navEvents.send(HomeNavigationEvent.ToPlanner) } }
+    fun onNavigateToCalories()        { viewModelScope.launch { _navEvents.send(HomeNavigationEvent.ToCalories) } }
+    fun onNavigateToProfile()         { viewModelScope.launch { _navEvents.send(HomeNavigationEvent.ToProfile) } }
+    fun onNavigateToDayDetail(day: String) { viewModelScope.launch { _navEvents.send(HomeNavigationEvent.ToDayDetail(day)) } }
 }
