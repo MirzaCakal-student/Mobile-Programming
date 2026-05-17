@@ -8,6 +8,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.mealplanner.model.data.local.dao.DayPlanDao
 import com.example.mealplanner.model.data.local.dao.IngredientDao
 import com.example.mealplanner.model.data.local.dao.MealDao
+import com.example.mealplanner.model.data.local.dao.UserAccountDao
 import com.example.mealplanner.model.data.local.dao.UserProfileDao
 import com.example.mealplanner.model.data.local.entity.*
 import com.example.mealplanner.model.data.local.util.DayPlanSeedData
@@ -22,17 +23,19 @@ import javax.inject.Provider
 @Database(
     entities = [
         UserProfileEntity::class,
+        UserAccountEntity::class,
         DayPlanEntity::class,
         MealEntity::class,
         DayMealCrossRef::class,
         IngredientEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun userProfileDao(): UserProfileDao
+    abstract fun userAccountDao(): UserAccountDao
     abstract fun dayPlanDao(): DayPlanDao
     abstract fun mealDao(): MealDao
     abstract fun ingredientDao(): IngredientDao
@@ -52,10 +55,8 @@ abstract class AppDatabase : RoomDatabase() {
                 database.dayPlanDao().insertAll(DayPlanSeedData.dayPlans)
                 // Seed ingredients for recipe builder
                 database.ingredientDao().insertAll(IngredientSeedData.ingredients)
-                // Seed default user profile
-                database.userProfileDao().insert(
-                    UserProfileEntity(id = 1, name = "Mirza", email = "mirza@example.com", dailyCalorieGoal = 2000)
-                )
+                // No seed account — user must register through the Sign-Up screen.
+                // Profile row is created when the first user signs up or logs in.
             }
         }
     }

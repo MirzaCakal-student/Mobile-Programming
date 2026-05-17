@@ -2,13 +2,13 @@ package com.example.mealplanner.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.mealplanner.model.repository.auth.AuthRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -36,7 +36,9 @@ sealed interface LoginNavigationEvent {
 // ── ViewModel ─────────────────────────────────────────────────────────────────
 
 @HiltViewModel
-class LoginViewModel @Inject constructor() : ViewModel() {
+class LoginViewModel @Inject constructor(
+    private val authRepository: AuthRepository
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow<LoginUiState>(LoginUiState.Form())
     val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
@@ -59,9 +61,20 @@ class LoginViewModel @Inject constructor() : ViewModel() {
         }
         _uiState.value = LoginUiState.Loading
         viewModelScope.launch {
-            // Simulated auth — replace with real backend in a future assignment
-            _uiState.value = LoginUiState.Form()
-            _navEvents.send(LoginNavigationEvent.NavigateToMain)
+            authRepository.login(f.email, f.password)
+                .onSuccess {
+                    _uiState.value = LoginUiState.Form()
+                    _navEvents.send(LoginNavigationEvent.NavigateToMain)
+                }
+                .onFailure { err ->
+                    val message = err.message ?: "Login failed"
+                    // Put the error in the right field for nicer UX.
+                    _uiState.value = if (message.contains("password", ignoreCase = true)) {
+                        f.copy(passwordError = message)
+                    } else {
+                        f.copy(emailError = message)
+                    }
+                }
         }
     }
 

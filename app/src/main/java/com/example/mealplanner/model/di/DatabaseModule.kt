@@ -5,8 +5,11 @@ import androidx.room.Room
 import com.example.mealplanner.model.data.local.dao.DayPlanDao
 import com.example.mealplanner.model.data.local.dao.IngredientDao
 import com.example.mealplanner.model.data.local.dao.MealDao
+import com.example.mealplanner.model.data.local.dao.UserAccountDao
 import com.example.mealplanner.model.data.local.dao.UserProfileDao
 import com.example.mealplanner.model.data.local.db.AppDatabase
+import com.example.mealplanner.model.repository.auth.AuthRepository
+import com.example.mealplanner.model.repository.auth.AuthRepositoryImpl
 import com.example.mealplanner.model.repository.dayplan.DayPlanRepository
 import com.example.mealplanner.model.repository.dayplan.DayPlanRepositoryImpl
 import com.example.mealplanner.model.repository.ingredient.IngredientRepository
@@ -41,6 +44,9 @@ object DatabaseModule {
     fun provideUserProfileDao(db: AppDatabase): UserProfileDao = db.userProfileDao()
 
     @Provides @Singleton
+    fun provideUserAccountDao(db: AppDatabase): UserAccountDao = db.userAccountDao()
+
+    @Provides @Singleton
     fun provideDayPlanDao(db: AppDatabase): DayPlanDao = db.dayPlanDao()
 
     @Provides @Singleton
@@ -60,4 +66,7 @@ object DatabaseModule {
 
     @Provides @Singleton
     fun provideIngredientRepository(impl: IngredientRepositoryImpl): IngredientRepository = impl
+
+    @Provides @Singleton
+    fun provideAuthRepository(impl: AuthRepositoryImpl): AuthRepository = impl
 }

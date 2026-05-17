@@ -2,6 +2,7 @@ package com.example.mealplanner.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.mealplanner.model.repository.auth.AuthRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,7 +34,9 @@ sealed interface SignUpNavigationEvent {
 }
 
 @HiltViewModel
-class SignUpViewModel @Inject constructor() : ViewModel() {
+class SignUpViewModel @Inject constructor(
+    private val authRepository: AuthRepository
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow<SignUpUiState>(SignUpUiState.Form())
     val uiState: StateFlow<SignUpUiState> = _uiState.asStateFlow()
@@ -60,8 +63,14 @@ class SignUpViewModel @Inject constructor() : ViewModel() {
         }
         _uiState.value = SignUpUiState.Loading
         viewModelScope.launch {
-            _uiState.value = SignUpUiState.Form()
-            _navEvents.send(SignUpNavigationEvent.NavigateToMain)
+            authRepository.register(f.email, f.password, f.name)
+                .onSuccess {
+                    _uiState.value = SignUpUiState.Form()
+                    _navEvents.send(SignUpNavigationEvent.NavigateToMain)
+                }
+                .onFailure { err ->
+                    _uiState.value = f.copy(emailError = err.message ?: "Sign-up failed")
+                }
         }
     }
 
