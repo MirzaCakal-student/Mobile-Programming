@@ -16,31 +16,69 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.mealplanner.model.DayPlan
 import com.example.mealplanner.model.Meal
 import com.example.mealplanner.model.MealSlotType
 import com.example.mealplanner.presentation.ui.components.CalorieStatusBanner
 import com.example.mealplanner.presentation.ui.components.MacroChip
 import com.example.mealplanner.presentation.ui.components.MealPlannerTopBar
-import com.example.mealplanner.presentation.viewmodel.MealPlannerViewModel
+import com.example.mealplanner.presentation.viewmodel.DayDetailNavigationEvent
+import com.example.mealplanner.presentation.viewmodel.DayDetailUiState
+import com.example.mealplanner.presentation.viewmodel.DayDetailViewModel
 
 @Composable
 fun DayDetailScreen(
-    dayName: String,
-    viewModel: MealPlannerViewModel,
+    viewModel: DayDetailViewModel,
     onSlotClick: (String) -> Unit,
     onBack: () -> Unit
 ) {
-    val state   by viewModel.uiState.collectAsState()
-    val dayPlan  = state.weekPlan[dayName]
-    val goal     = 2000
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(Unit) {
+        viewModel.navEvents.collect { event ->
+            when (event) {
+                is DayDetailNavigationEvent.ToMealSlot -> onSlotClick(event.slotName)
+                DayDetailNavigationEvent.GoBack        -> onBack()
+            }
+        }
+    }
+
+    when (val s = uiState) {
+        DayDetailUiState.Init, DayDetailUiState.Loading -> {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        }
+        is DayDetailUiState.Error -> {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(s.message, color = MaterialTheme.colorScheme.error)
+            }
+        }
+        is DayDetailUiState.Success -> DayDetailScreenContent(
+            state          = s,
+            onSlotClick    = viewModel::onSlotClick,
+            onMarkComplete = viewModel::markDayComplete,
+            onBack         = viewModel::onBack
+        )
+    }
+}
+
+@Composable
+fun DayDetailScreenContent(
+    state: DayDetailUiState.Success,
+    onSlotClick: (String) -> Unit,
+    onMarkComplete: () -> Unit,
+    onBack: () -> Unit
+) {
+    val goal = 2000
 
     Scaffold(
-        topBar    = { MealPlannerTopBar(title = dayName, onBack = onBack) },
+        topBar    = { MealPlannerTopBar(title = state.dayName, onBack = onBack) },
         bottomBar = {
             DayDoneBottomBar(
-                isComplete = dayPlan?.isComplete == true,
-                onMarkDone = { viewModel.markDayComplete(dayName) }
+                isComplete = state.dayPlan.isComplete,
+                onMarkDone = onMarkComplete
             )
         }
     ) { padding ->
@@ -52,16 +90,16 @@ fun DayDetailScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            DailyTotalsCard(dayPlan = dayPlan)
-            CalorieStatusBanner(consumed = dayPlan?.totalCalories ?: 0, goal = goal)
+            DailyTotalsCard(dayPlan = state.dayPlan)
+            CalorieStatusBanner(consumed = state.dayPlan.totalCalories, goal = goal)
 
             MealSlotType.values().forEach { slot ->
-                val meals = dayPlan?.mealsForSlot(slot) ?: emptyList()
+                val meals = state.dayPlan.mealsForSlot(slot)
                 val time  = when (slot) {
-                    MealSlotType.BREAKFAST -> dayPlan?.eatTimeBreakfast ?: "08:00"
-                    MealSlotType.LUNCH     -> dayPlan?.eatTimeLunch     ?: "13:00"
-                    MealSlotType.DINNER    -> dayPlan?.eatTimeDinner    ?: "19:00"
-                    MealSlotType.SNACKS    -> dayPlan?.eatTimeSnacks    ?: "16:00"
+                    MealSlotType.BREAKFAST -> state.dayPlan.eatTimeBreakfast
+                    MealSlotType.LUNCH     -> state.dayPlan.eatTimeLunch
+                    MealSlotType.DINNER    -> state.dayPlan.eatTimeDinner
+                    MealSlotType.SNACKS    -> state.dayPlan.eatTimeSnacks
                 }
                 MealSlotCard(
                     slot    = slot,

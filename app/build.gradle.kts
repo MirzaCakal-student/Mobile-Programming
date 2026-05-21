@@ -4,6 +4,8 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.hilt)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -41,6 +43,7 @@ android {
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)
@@ -59,6 +62,17 @@ dependencies {
 
     // Icons Extended
     implementation("androidx.compose.material:material-icons-extended:1.6.3")
+
+    // Hilt — dependency injection
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
+    // hiltViewModel() helper for Compose navigation
+    implementation(libs.hilt.navigation.compose)
+
+    // Room — local database
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
+    ksp(libs.room.compiler)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

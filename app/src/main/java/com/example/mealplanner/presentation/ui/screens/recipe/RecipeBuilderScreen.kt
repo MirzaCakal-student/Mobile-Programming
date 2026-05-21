@@ -16,20 +16,57 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.mealplanner.model.HardcodedData
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.mealplanner.model.Ingredient
 import com.example.mealplanner.presentation.ui.components.AppSearchBar
 import com.example.mealplanner.presentation.ui.components.MacroChip
 import com.example.mealplanner.presentation.ui.components.MealPlannerTopBar
-import com.example.mealplanner.presentation.viewmodel.MealPlannerViewModel
+import com.example.mealplanner.presentation.viewmodel.RecipeBuilderNavigationEvent
+import com.example.mealplanner.presentation.viewmodel.RecipeBuilderUiState
+import com.example.mealplanner.presentation.viewmodel.RecipeBuilderViewModel
 
 data class IngredientEntry(val ingredient: Ingredient, val grams: Double)
 
 @Composable
 fun RecipeBuilderScreen(
-    dayName: String,
-    slotName: String,
-    viewModel: MealPlannerViewModel,
+    viewModel: RecipeBuilderViewModel,
+    onBack: () -> Unit
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(Unit) {
+        viewModel.navEvents.collect { event ->
+            when (event) {
+                RecipeBuilderNavigationEvent.GoBack -> onBack()
+            }
+        }
+    }
+
+    when (val s = uiState) {
+        RecipeBuilderUiState.Init, RecipeBuilderUiState.Loading -> {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        }
+        is RecipeBuilderUiState.Error -> {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(s.message, color = MaterialTheme.colorScheme.error)
+            }
+        }
+        is RecipeBuilderUiState.Success -> RecipeBuilderScreenContent(
+            ingredients = s.ingredients,
+            onSave      = { name, cal, protein, fat, carbs ->
+                viewModel.saveRecipe(name, cal, protein, fat, carbs)
+            },
+            onBack      = viewModel::onBack
+        )
+    }
+}
+
+@Composable
+fun RecipeBuilderScreenContent(
+    ingredients: List<Ingredient>,
+    onSave: (name: String, calories: Int, proteinG: Double, fatG: Double, carbsG: Double) -> Unit,
     onBack: () -> Unit
 ) {
     var recipeName          by remember { mutableStateOf("") }
@@ -38,13 +75,12 @@ fun RecipeBuilderScreen(
     var selectedIngredients by remember { mutableStateOf<List<IngredientEntry>>(emptyList()) }
     var selectedTab         by remember { mutableStateOf(0) }
 
-    // Derived values from local state (no business logic in composable — pure UI computation)
     val totalCal  = selectedIngredients.sumOf { (it.ingredient.caloriesPer100g * it.grams / 100).toInt() }
     val totalProt = selectedIngredients.sumOf { it.ingredient.proteinPer100g * it.grams / 100 }
     val totalCarb = selectedIngredients.sumOf { it.ingredient.carbsPer100g   * it.grams / 100 }
     val totalFat  = selectedIngredients.sumOf { it.ingredient.fatPer100g     * it.grams / 100 }
 
-    val filteredIngredients = HardcodedData.ingredients.filter {
+    val filteredIngredients = ingredients.filter {
         searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true)
     }
 
@@ -60,11 +96,7 @@ fun RecipeBuilderScreen(
                 onSave       = {
                     if (recipeName.isBlank()) { nameError = "Recipe name is required"; return@RecipeBottomBar }
                     if (selectedIngredients.isEmpty()) return@RecipeBottomBar
-                    viewModel.addCustomRecipeAsMeal(
-                        dayName  = dayName, slotName = slotName, name = recipeName,
-                        calories = totalCal, proteinG = totalProt, fatG = totalFat, carbsG = totalCarb
-                    )
-                    onBack()
+                    onSave(recipeName, totalCal, totalProt, totalFat, totalCarb)
                 }
             )
         }
@@ -90,10 +122,9 @@ fun RecipeBuilderScreen(
                     AppSearchBar(
                         query         = searchQuery,
                         onQueryChange = { searchQuery = it },
-                        placeholder   = "Search 55 ingredients…",
+                        placeholder   = "Search ${ingredients.size} ingredients…",
                         modifier      = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
                     )
-                    // LazyColumn for ingredients list with search filter
                     LazyColumn(
                         contentPadding      = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -132,7 +163,6 @@ fun RecipeBuilderScreen(
                             }
                         }
                     } else {
-                        // LazyColumn for selected ingredients in recipe
                         LazyColumn(
                             contentPadding      = PaddingValues(16.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)

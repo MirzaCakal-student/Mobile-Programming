@@ -20,38 +20,71 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.mealplanner.model.HardcodedData
 import com.example.mealplanner.model.Meal
 import com.example.mealplanner.presentation.ui.components.MealCardCompact
 import com.example.mealplanner.presentation.ui.components.SectionHeader
 import com.example.mealplanner.presentation.ui.components.StatCard
-import com.example.mealplanner.presentation.viewmodel.MealPlannerViewModel
-import com.example.mealplanner.presentation.viewmodel.ProfileViewModel
+import com.example.mealplanner.presentation.viewmodel.HomeNavigationEvent
+import com.example.mealplanner.presentation.viewmodel.HomeUiState
+import com.example.mealplanner.presentation.viewmodel.HomeViewModel
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 @Composable
 fun HomeScreen(
-    profileViewModel: ProfileViewModel,
-    mealPlannerViewModel: MealPlannerViewModel,
+    viewModel: HomeViewModel,
     onNavigateToPlanner: () -> Unit,
     onNavigateToCalories: () -> Unit,
     onNavigateToProfile: () -> Unit,
-    // Navigates directly to a specific day's detail screen (deep navigation)
-    onNavigateToDayDetail: (String) -> Unit = {}
+    onNavigateToDayDetail: (String) -> Unit
 ) {
-    // ── State collection (single source of truth via ViewModels) ─────────────
-    val profileState      by profileViewModel.uiState.collectAsState()
-    val plannerState      by mealPlannerViewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    // ── Derived states collected from ViewModel StateFlows ───────────────────
-    val completedDays     by mealPlannerViewModel.completedDaysCount.collectAsState()
-    val weeklyCalories    by mealPlannerViewModel.totalWeeklyCalories.collectAsState()
-    val totalWeeklyMeals  by mealPlannerViewModel.totalWeeklyMeals.collectAsState()
+    LaunchedEffect(Unit) {
+        viewModel.navEvents.collect { event ->
+            when (event) {
+                HomeNavigationEvent.ToPlanner              -> onNavigateToPlanner()
+                HomeNavigationEvent.ToCalories             -> onNavigateToCalories()
+                HomeNavigationEvent.ToProfile              -> onNavigateToProfile()
+                is HomeNavigationEvent.ToDayDetail         -> onNavigateToDayDetail(event.dayName)
+            }
+        }
+    }
 
-    val todayIndex        = LocalDate.now().dayOfWeek.value - 1
-    val totalCalToday     = plannerState.weekPlan[HardcodedData.weekDays[todayIndex]]?.totalCalories ?: 0
-    val goalCal           = profileState.profile.dailyCalorieGoal
+    when (val s = uiState) {
+        HomeUiState.Init, HomeUiState.Loading -> {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        }
+        is HomeUiState.Error -> {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(s.message, color = MaterialTheme.colorScheme.error)
+            }
+        }
+        is HomeUiState.Success -> HomeScreenContent(
+            state                 = s,
+            onNavigateToPlanner   = viewModel::onNavigateToPlanner,
+            onNavigateToCalories  = viewModel::onNavigateToCalories,
+            onNavigateToProfile   = viewModel::onNavigateToProfile,
+            onNavigateToDayDetail = viewModel::onNavigateToDayDetail
+        )
+    }
+}
+
+@Composable
+fun HomeScreenContent(
+    state: HomeUiState.Success,
+    onNavigateToPlanner: () -> Unit,
+    onNavigateToCalories: () -> Unit,
+    onNavigateToProfile: () -> Unit,
+    onNavigateToDayDetail: (String) -> Unit
+) {
+    val todayIndex    = LocalDate.now().dayOfWeek.value - 1
+    val totalCalToday = state.weekPlan[HardcodedData.weekDays[todayIndex]]?.totalCalories ?: 0
+    val goalCal       = state.profile.dailyCalorieGoal
 
     Scaffold(
         topBar = {
@@ -70,7 +103,7 @@ fun HomeScreen(
                 ) {
                     Column {
                         Text(
-                            "Good day, ${profileState.profile.name}! 👋",
+                            "Good day, ${state.profile.name}! 👋",
                             fontSize   = 20.sp,
                             fontWeight = FontWeight.Bold,
                             color      = Color.White
@@ -101,7 +134,6 @@ fun HomeScreen(
             }
         }
     ) { padding ->
-        // ── Main content in a LazyColumn ──────────────────────────────────────
         LazyColumn(
             modifier        = Modifier
                 .fillMaxSize()
@@ -109,29 +141,26 @@ fun HomeScreen(
             contentPadding  = PaddingValues(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
-            // ── Today's stats ────────────────────────────────────────────────
             item {
                 Column(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    TodayStatsRow(consumed = totalCalToday, goal = goalCal, completed = completedDays)
+                    TodayStatsRow(consumed = totalCalToday, goal = goalCal, completed = state.completedDaysCount)
                 }
             }
 
-            // ── Weekly progress card ─────────────────────────────────────────
             item {
                 WeeklyProgressCard(
-                    weekPlan      = plannerState.weekPlan,
-                    completedDays = completedDays,
-                    weeklyMeals   = totalWeeklyMeals,
+                    weekPlan      = state.weekPlan,
+                    completedDays = state.completedDaysCount,
+                    weeklyMeals   = state.totalWeeklyMeals,
                     onOpenPlanner = onNavigateToPlanner,
                     modifier      = Modifier.padding(horizontal = 16.dp)
                 )
                 Spacer(Modifier.height(20.dp))
             }
 
-            // ── LazyRow 1: Suggested Meals (horizontal scroll) ───────────────
             item {
                 SectionHeader(
                     title    = "Suggested Meals",
@@ -139,13 +168,12 @@ fun HomeScreen(
                 )
                 Spacer(Modifier.height(10.dp))
                 SuggestedMealsRow(
-                    meals   = HardcodedData.premadeMeals.take(8),
+                    meals       = state.suggestedMeals,
                     onMealClick = onNavigateToPlanner
                 )
                 Spacer(Modifier.height(20.dp))
             }
 
-            // ── LazyRow 2: Weekly Day Highlights ────────────────────────────
             item {
                 SectionHeader(
                     title    = "This Week",
@@ -158,13 +186,12 @@ fun HomeScreen(
                 )
                 Spacer(Modifier.height(10.dp))
                 WeekDayHighlightsRow(
-                    weekPlan   = plannerState.weekPlan,
-                    onDayClick = onNavigateToDayDetail   // navigates directly to that day
+                    weekPlan   = state.weekPlan,
+                    onDayClick = onNavigateToDayDetail
                 )
                 Spacer(Modifier.height(20.dp))
             }
 
-            // ── Quick Actions ────────────────────────────────────────────────
             item {
                 Column(
                     modifier = Modifier.padding(horizontal = 16.dp),
@@ -180,7 +207,6 @@ fun HomeScreen(
                 Spacer(Modifier.height(20.dp))
             }
 
-            // ── Tip of the day ───────────────────────────────────────────────
             item {
                 TipCard(modifier = Modifier.padding(horizontal = 16.dp))
             }
@@ -298,7 +324,7 @@ fun SuggestedMealsRow(
         return
     }
     LazyRow(
-        contentPadding      = PaddingValues(horizontal = 16.dp),
+        contentPadding        = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         items(meals, key = { it.id }) { meal ->
@@ -315,7 +341,6 @@ fun SuggestedMealsRow(
 @Composable
 fun WeekDayHighlightsRow(
     weekPlan: Map<String, com.example.mealplanner.model.DayPlan>,
-    // Receives the day name so callers can navigate to the correct day's detail
     onDayClick: (String) -> Unit
 ) {
     LazyRow(
@@ -333,7 +358,6 @@ fun WeekDayHighlightsRow(
                 calories   = calories,
                 mealCount  = mealCount,
                 isComplete = isComplete,
-                // Pass dayName so the card can navigate to that specific day
                 onClick    = { onDayClick(dayName) }
             )
         }
@@ -348,7 +372,7 @@ private fun DayHighlightCard(
     isComplete: Boolean,
     onClick: () -> Unit
 ) {
-    val bgColor = if (isComplete) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
+    val bgColor   = if (isComplete) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
     val textColor = if (isComplete) Color.White else MaterialTheme.colorScheme.onSurface
 
     Card(

@@ -19,12 +19,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.mealplanner.model.UserProfile
 import com.example.mealplanner.presentation.ui.components.AppTextField
 import com.example.mealplanner.presentation.ui.components.DangerButton
 import com.example.mealplanner.presentation.ui.components.MealPlannerTopBar
 import com.example.mealplanner.presentation.ui.components.PrimaryButton
 import com.example.mealplanner.presentation.ui.components.SectionHeader
 import com.example.mealplanner.presentation.ui.components.StatCard
+import com.example.mealplanner.presentation.viewmodel.ProfileFormState
+import com.example.mealplanner.presentation.viewmodel.ProfileNavigationEvent
+import com.example.mealplanner.presentation.viewmodel.ProfileUiState
 import com.example.mealplanner.presentation.viewmodel.ProfileViewModel
 
 @Composable
@@ -32,8 +37,57 @@ fun ProfileScreen(
     viewModel: ProfileViewModel,
     onLogout: () -> Unit
 ) {
-    val state by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
+    LaunchedEffect(Unit) {
+        viewModel.navEvents.collect { event ->
+            when (event) {
+                ProfileNavigationEvent.Logout -> onLogout()
+            }
+        }
+    }
+
+    when (val s = uiState) {
+        ProfileUiState.Init, ProfileUiState.Loading -> {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        }
+        is ProfileUiState.Error -> {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(s.message, color = MaterialTheme.colorScheme.error)
+            }
+        }
+        is ProfileUiState.Success -> ProfileScreenContent(
+            profile            = s.profile,
+            form               = s.form,
+            onNameChange       = viewModel::onNameChange,
+            onEmailChange      = viewModel::onEmailChange,
+            onWeightChange     = viewModel::onWeightChange,
+            onHeightChange     = viewModel::onHeightChange,
+            onAgeChange        = viewModel::onAgeChange,
+            onCalorieGoalChange = viewModel::onCalorieGoalChange,
+            onGenderChange     = viewModel::onGenderChange,
+            onSaveProfile      = viewModel::onSaveProfile,
+            onLogout           = viewModel::onLogout
+        )
+    }
+}
+
+@Composable
+fun ProfileScreenContent(
+    profile: UserProfile,
+    form: ProfileFormState,
+    onNameChange: (String) -> Unit,
+    onEmailChange: (String) -> Unit,
+    onWeightChange: (String) -> Unit,
+    onHeightChange: (String) -> Unit,
+    onAgeChange: (String) -> Unit,
+    onCalorieGoalChange: (String) -> Unit,
+    onGenderChange: (String) -> Unit,
+    onSaveProfile: () -> Unit,
+    onLogout: () -> Unit
+) {
     Scaffold(
         topBar = {
             MealPlannerTopBar(
@@ -53,7 +107,7 @@ fun ProfileScreen(
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            ProfileBanner(name = state.nameInput)
+            ProfileBanner(name = form.nameInput)
 
             Column(
                 modifier            = Modifier.padding(horizontal = 20.dp),
@@ -61,7 +115,7 @@ fun ProfileScreen(
             ) {
                 Spacer(Modifier.height(8.dp))
 
-                if (state.isSaved) {
+                if (form.isSaved) {
                     Card(
                         shape  = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9))
@@ -74,48 +128,48 @@ fun ProfileScreen(
                     }
                 }
 
-                if (state.profile.weightKg > 0 || state.profile.dailyCalorieGoal > 0) {
+                if (profile.weightKg > 0 || profile.dailyCalorieGoal > 0) {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        if (state.profile.weightKg > 0)
-                            StatCard("${state.profile.weightKg} kg", "Weight", Color(0xFF1976D2), modifier = Modifier.weight(1f))
-                        if (state.profile.heightCm > 0)
-                            StatCard("${state.profile.heightCm} cm", "Height", Color(0xFF388E3C), modifier = Modifier.weight(1f))
-                        StatCard("${state.profile.dailyCalorieGoal}", "Cal Goal", Color(0xFFF57C00), modifier = Modifier.weight(1f))
+                        if (profile.weightKg > 0)
+                            StatCard("${profile.weightKg} kg", "Weight", Color(0xFF1976D2), modifier = Modifier.weight(1f))
+                        if (profile.heightCm > 0)
+                            StatCard("${profile.heightCm} cm", "Height", Color(0xFF388E3C), modifier = Modifier.weight(1f))
+                        StatCard("${profile.dailyCalorieGoal}", "Cal Goal", Color(0xFFF57C00), modifier = Modifier.weight(1f))
                     }
                 }
 
                 SectionHeader("Personal Info")
                 AppTextField(
-                    value         = state.nameInput,
-                    onValueChange = viewModel::onNameChange,
+                    value         = form.nameInput,
+                    onValueChange = onNameChange,
                     label         = "Full Name",
-                    errorMessage  = state.nameError
+                    errorMessage  = form.nameError
                 )
                 AppTextField(
-                    value         = state.emailInput,
-                    onValueChange = viewModel::onEmailChange,
+                    value         = form.emailInput,
+                    onValueChange = onEmailChange,
                     label         = "Email",
-                    errorMessage  = state.emailError,
+                    errorMessage  = form.emailError,
                     keyboardType  = KeyboardType.Email
                 )
 
                 SectionHeader("Body Measurements")
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    AppTextField(value = state.weightInput, onValueChange = viewModel::onWeightChange, label = "Weight (kg)", keyboardType = KeyboardType.Decimal, modifier = Modifier.weight(1f))
-                    AppTextField(value = state.heightInput, onValueChange = viewModel::onHeightChange, label = "Height (cm)", keyboardType = KeyboardType.Decimal, modifier = Modifier.weight(1f))
+                    AppTextField(value = form.weightInput, onValueChange = onWeightChange, label = "Weight (kg)", keyboardType = KeyboardType.Decimal, modifier = Modifier.weight(1f))
+                    AppTextField(value = form.heightInput, onValueChange = onHeightChange, label = "Height (cm)", keyboardType = KeyboardType.Decimal, modifier = Modifier.weight(1f))
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    AppTextField(value = state.ageInput,         onValueChange = viewModel::onAgeChange,         label = "Age",            keyboardType = KeyboardType.Number, modifier = Modifier.weight(1f))
-                    AppTextField(value = state.calorieGoalInput, onValueChange = viewModel::onCalorieGoalChange, label = "Daily Cal Goal", keyboardType = KeyboardType.Number, modifier = Modifier.weight(1f))
+                    AppTextField(value = form.ageInput,         onValueChange = onAgeChange,         label = "Age",            keyboardType = KeyboardType.Number, modifier = Modifier.weight(1f))
+                    AppTextField(value = form.calorieGoalInput, onValueChange = onCalorieGoalChange, label = "Daily Cal Goal", keyboardType = KeyboardType.Number, modifier = Modifier.weight(1f))
                 }
 
                 SectionHeader("Gender")
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     listOf("Male", "Female").forEach { g ->
                         FilterChip(
-                            selected = state.gender == g,
-                            onClick  = { viewModel.onGenderChange(g) },
-                            label    = { Text(g, fontWeight = if (state.gender == g) FontWeight.Bold else FontWeight.Normal) },
+                            selected = form.gender == g,
+                            onClick  = { onGenderChange(g) },
+                            label    = { Text(g, fontWeight = if (form.gender == g) FontWeight.Bold else FontWeight.Normal) },
                             modifier = Modifier.weight(1f),
                             colors   = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
@@ -128,8 +182,8 @@ fun ProfileScreen(
                 Spacer(Modifier.height(4.dp))
                 PrimaryButton(
                     text    = "Save Profile",
-                    onClick = viewModel::onSaveProfile,
-                    enabled = state.nameInput.isNotBlank() && state.emailInput.isNotBlank()
+                    onClick = onSaveProfile,
+                    enabled = form.nameInput.isNotBlank() && form.emailInput.isNotBlank()
                 )
                 DangerButton(text = "Log Out", onClick = onLogout)
                 Spacer(Modifier.height(32.dp))

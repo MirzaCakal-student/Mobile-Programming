@@ -21,10 +21,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.mealplanner.model.DayPlan
 import com.example.mealplanner.model.HardcodedData
 import com.example.mealplanner.presentation.ui.components.MealPlannerTopBar
 import com.example.mealplanner.presentation.ui.components.SectionHeader
+import com.example.mealplanner.presentation.viewmodel.MealPlannerNavigationEvent
+import com.example.mealplanner.presentation.viewmodel.MealPlannerUiState
 import com.example.mealplanner.presentation.viewmodel.MealPlannerViewModel
 import kotlinx.coroutines.launch
 
@@ -33,15 +36,42 @@ fun MealPlannerScreen(
     viewModel: MealPlannerViewModel,
     onDayClick: (String) -> Unit
 ) {
-    val state         by viewModel.uiState.collectAsState()
-    // Collected from derived StateFlow — no local computation in composable
-    val completedDays by viewModel.completedDaysCount.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    // State for scroll-to-top behavior (bonus feature)
+    LaunchedEffect(Unit) {
+        viewModel.navEvents.collect { event ->
+            when (event) {
+                is MealPlannerNavigationEvent.ToDayDetail -> onDayClick(event.dayName)
+            }
+        }
+    }
+
+    when (val s = uiState) {
+        MealPlannerUiState.Init, MealPlannerUiState.Loading -> {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        }
+        is MealPlannerUiState.Error -> {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(s.message, color = MaterialTheme.colorScheme.error)
+            }
+        }
+        is MealPlannerUiState.Success -> MealPlannerScreenContent(
+            state      = s,
+            onDayClick = viewModel::onDayClick
+        )
+    }
+}
+
+@Composable
+fun MealPlannerScreenContent(
+    state: MealPlannerUiState.Success,
+    onDayClick: (String) -> Unit
+) {
     val listState      = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
 
-    // derivedStateOf — only recomposes when the result actually changes
     val showScrollToTop by remember {
         derivedStateOf { listState.firstVisibleItemIndex > 1 }
     }
@@ -49,19 +79,18 @@ fun MealPlannerScreen(
     Scaffold(
         topBar = { MealPlannerTopBar(title = "Weekly Meal Plan") },
         floatingActionButton = {
-            // Scroll-to-top FAB (bonus)
             AnimatedVisibility(
                 visible = showScrollToTop,
                 enter   = fadeIn(),
                 exit    = fadeOut()
             ) {
                 SmallFloatingActionButton(
-                    onClick            = {
+                    onClick        = {
                         coroutineScope.launch { listState.animateScrollToItem(0) }
                     },
-                    containerColor     = MaterialTheme.colorScheme.primary,
-                    contentColor       = Color.White,
-                    shape              = CircleShape
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor   = Color.White,
+                    shape          = CircleShape
                 ) {
                     Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Scroll to top")
                 }
@@ -77,7 +106,7 @@ fun MealPlannerScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding  = PaddingValues(vertical = 16.dp)
         ) {
-            item { WeekSummaryBar(completedDays = completedDays) }
+            item { WeekSummaryBar(completedDays = state.completedDaysCount) }
             item { SectionHeader("Days of the Week") }
 
             items(HardcodedData.weekDays, key = { it }) { dayName ->

@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -27,17 +27,20 @@ import com.example.mealplanner.presentation.ui.screens.profile.ProfileScreen
 import com.example.mealplanner.presentation.ui.screens.recipe.RecipeBuilderScreen
 import com.example.mealplanner.presentation.ui.screens.signup.SignUpScreen
 import com.example.mealplanner.presentation.ui.screens.splash.SplashScreen
-import com.example.mealplanner.presentation.viewmodel.AuthViewModel
+import com.example.mealplanner.presentation.viewmodel.AddMealViewModel
 import com.example.mealplanner.presentation.viewmodel.CaloriesViewModel
+import com.example.mealplanner.presentation.viewmodel.DayDetailViewModel
+import com.example.mealplanner.presentation.viewmodel.HomeViewModel
+import com.example.mealplanner.presentation.viewmodel.LoginViewModel
 import com.example.mealplanner.presentation.viewmodel.MealPlannerViewModel
+import com.example.mealplanner.presentation.viewmodel.MealSlotViewModel
 import com.example.mealplanner.presentation.viewmodel.ProfileViewModel
+import com.example.mealplanner.presentation.viewmodel.RecipeBuilderViewModel
+import com.example.mealplanner.presentation.viewmodel.SignUpViewModel
 
 // ── Slide-transition helpers ──────────────────────────────────────────────────
-// Reused on every composable destination so transitions are consistent.
-// Forward  → new screen slides in from right, old screen slides out to left.
-// Backward → new screen slides in from left, old screen slides out to right.
 
-private const val ANIM_MS = 350   // transition duration in milliseconds
+private const val ANIM_MS = 350
 
 private fun enterSlide()    = slideInHorizontally(tween(ANIM_MS))  { it }
 private fun exitSlide()     = slideOutHorizontally(tween(ANIM_MS)) { -it }
@@ -45,23 +48,15 @@ private fun popEnterSlide() = slideInHorizontally(tween(ANIM_MS))  { -it }
 private fun popExitSlide()  = slideOutHorizontally(tween(ANIM_MS)) { it }
 
 // ── Root Navigation Graph ─────────────────────────────────────────────────────
+
 @Composable
 fun AppNavGraph() {
     val navController = rememberNavController()
-
-    // ViewModels created once at graph level — shared across all screens
-    // (single source of truth, survives screen recompositions)
-    val authViewModel: AuthViewModel               = viewModel()
-    val mealPlannerViewModel: MealPlannerViewModel = viewModel()
-    val profileViewModel: ProfileViewModel         = viewModel()
-    val caloriesViewModel: CaloriesViewModel       = viewModel()
 
     Scaffold(
         bottomBar = { MealPlannerBottomBar(navController) }
     ) { innerPadding ->
 
-        // startDestination points to the AUTH_GRAPH nested graph, which
-        // immediately resolves to its own startDestination (SPLASH).
         NavHost(
             navController    = navController,
             startDestination = NavRoutes.AUTH_GRAPH,
@@ -70,15 +65,14 @@ fun AppNavGraph() {
 
             // ════════════════════════════════════════════════════════════════
             // NESTED AUTH GRAPH
-            // Groups Splash → Login → Sign-up so they can be cleared from
-            // the back stack with a single popUpTo(NavRoutes.AUTH_GRAPH).
+            // hiltViewModel() retrieves a @HiltViewModel-scoped ViewModel for each
+            // backstack entry — 1 screen = 1 ViewModel, lifecycle managed by Hilt.
             // ════════════════════════════════════════════════════════════════
             navigation(
                 startDestination = NavRoutes.SPLASH,
                 route            = NavRoutes.AUTH_GRAPH
             ) {
 
-                // Splash — simple fade in/out, no slide
                 composable(
                     route           = NavRoutes.SPLASH,
                     enterTransition = { fadeIn(tween(ANIM_MS)) },
@@ -93,7 +87,6 @@ fun AppNavGraph() {
                     )
                 }
 
-                // Login
                 composable(
                     route              = NavRoutes.LOGIN,
                     enterTransition    = { enterSlide() },
@@ -101,11 +94,11 @@ fun AppNavGraph() {
                     popEnterTransition = { popEnterSlide() },
                     popExitTransition  = { popExitSlide() }
                 ) {
+                    val viewModel: LoginViewModel = hiltViewModel()
                     LoginScreen(
-                        viewModel          = authViewModel,
+                        viewModel          = viewModel,
                         onNavigateToSignUp = { navController.navigate(NavRoutes.SIGNUP) },
                         onLoginSuccess     = {
-                            // Navigate into main graph; clear entire auth graph from back stack
                             navController.navigate(NavRoutes.MAIN_GRAPH) {
                                 popUpTo(NavRoutes.AUTH_GRAPH) { inclusive = true }
                             }
@@ -113,7 +106,6 @@ fun AppNavGraph() {
                     )
                 }
 
-                // Sign-up
                 composable(
                     route              = NavRoutes.SIGNUP,
                     enterTransition    = { enterSlide() },
@@ -121,10 +113,10 @@ fun AppNavGraph() {
                     popEnterTransition = { popEnterSlide() },
                     popExitTransition  = { popExitSlide() }
                 ) {
+                    val viewModel: SignUpViewModel = hiltViewModel()
                     SignUpScreen(
-                        viewModel         = authViewModel,
+                        viewModel         = viewModel,
                         onSignUpSuccess   = {
-                            // Same as login success — land on Home, clear auth back stack
                             navController.navigate(NavRoutes.MAIN_GRAPH) {
                                 popUpTo(NavRoutes.AUTH_GRAPH) { inclusive = true }
                             }
@@ -136,8 +128,9 @@ fun AppNavGraph() {
 
             // ════════════════════════════════════════════════════════════════
             // NESTED MAIN GRAPH
-            // Contains all post-login screens: bottom-nav tabs + deep screens.
-            // Navigating to NavRoutes.MAIN_GRAPH lands on HOME (startDestination).
+            // hiltViewModel() is used for all screens. Hilt + Navigation Compose
+            // automatically populate SavedStateHandle from route arguments for
+            // deep screens (DayDetail, MealSlot, AddMeal, RecipeBuilder).
             // ════════════════════════════════════════════════════════════════
             navigation(
                 startDestination = NavRoutes.HOME,
@@ -153,14 +146,12 @@ fun AppNavGraph() {
                     popEnterTransition = { popEnterSlide() },
                     popExitTransition  = { popExitSlide() }
                 ) {
+                    val viewModel: HomeViewModel = hiltViewModel()
                     HomeScreen(
-                        profileViewModel      = profileViewModel,
-                        mealPlannerViewModel  = mealPlannerViewModel,
+                        viewModel             = viewModel,
                         onNavigateToPlanner   = { navController.navigate(NavRoutes.MEAL_PLANNER) },
                         onNavigateToCalories  = { navController.navigate(NavRoutes.CALORIES_CALC) },
                         onNavigateToProfile   = { navController.navigate(NavRoutes.PROFILE) },
-                        // Clicking a day card in "This Week" row navigates directly
-                        // to that day's detail screen (demonstrates argument passing)
                         onNavigateToDayDetail = { dayName ->
                             navController.navigate(NavRoutes.dayDetail(dayName))
                         }
@@ -174,8 +165,9 @@ fun AppNavGraph() {
                     popEnterTransition = { popEnterSlide() },
                     popExitTransition  = { popExitSlide() }
                 ) {
+                    val viewModel: MealPlannerViewModel = hiltViewModel()
                     MealPlannerScreen(
-                        viewModel  = mealPlannerViewModel,
+                        viewModel  = viewModel,
                         onDayClick = { dayName ->
                             navController.navigate(NavRoutes.dayDetail(dayName))
                         }
@@ -189,7 +181,8 @@ fun AppNavGraph() {
                     popEnterTransition = { popEnterSlide() },
                     popExitTransition  = { popExitSlide() }
                 ) {
-                    CaloriesCalculatorScreen(viewModel = caloriesViewModel)
+                    val viewModel: CaloriesViewModel = hiltViewModel()
+                    CaloriesCalculatorScreen(viewModel = viewModel)
                 }
 
                 composable(
@@ -199,10 +192,10 @@ fun AppNavGraph() {
                     popEnterTransition = { popEnterSlide() },
                     popExitTransition  = { popExitSlide() }
                 ) {
+                    val viewModel: ProfileViewModel = hiltViewModel()
                     ProfileScreen(
-                        viewModel = profileViewModel,
+                        viewModel = viewModel,
                         onLogout  = {
-                            // Navigate back to Login; clear entire main graph from back stack
                             navController.navigate(NavRoutes.LOGIN) {
                                 popUpTo(NavRoutes.MAIN_GRAPH) { inclusive = true }
                             }
@@ -210,9 +203,9 @@ fun AppNavGraph() {
                     )
                 }
 
-                // ── Deep screens (argument passing) ───────────────────────
+                // ── Deep screens — SavedStateHandle carries nav arguments ──
 
-                // Day Detail — receives dayName as a String argument
+                // DayDetailViewModel gets dayName from SavedStateHandle automatically
                 composable(
                     route              = NavRoutes.DAY_DETAIL,
                     arguments          = listOf(
@@ -223,10 +216,10 @@ fun AppNavGraph() {
                     popEnterTransition = { popEnterSlide() },
                     popExitTransition  = { popExitSlide() }
                 ) { backStackEntry ->
-                    val dayName = backStackEntry.arguments?.getString("dayName") ?: ""
+                    val dayName   = backStackEntry.arguments?.getString("dayName") ?: ""
+                    val viewModel: DayDetailViewModel = hiltViewModel()
                     DayDetailScreen(
-                        dayName     = dayName,
-                        viewModel   = mealPlannerViewModel,
+                        viewModel   = viewModel,
                         onSlotClick = { slotName ->
                             navController.navigate(NavRoutes.mealSlot(dayName, slotName))
                         },
@@ -234,7 +227,7 @@ fun AppNavGraph() {
                     )
                 }
 
-                // Meal Slot — receives dayName + slotName as String arguments
+                // MealSlotViewModel gets dayName + slotName from SavedStateHandle
                 composable(
                     route              = NavRoutes.MEAL_SLOT,
                     arguments          = listOf(
@@ -248,17 +241,16 @@ fun AppNavGraph() {
                 ) { backStackEntry ->
                     val dayName  = backStackEntry.arguments?.getString("dayName")  ?: ""
                     val slotName = backStackEntry.arguments?.getString("slotName") ?: ""
+                    val viewModel: MealSlotViewModel = hiltViewModel()
                     MealSlotScreen(
-                        dayName     = dayName,
-                        slotName    = slotName,
-                        viewModel   = mealPlannerViewModel,
+                        viewModel   = viewModel,
                         onAddMeal   = { navController.navigate(NavRoutes.addMeal(dayName, slotName)) },
                         onAddRecipe = { navController.navigate(NavRoutes.recipeBuilder(dayName, slotName)) },
                         onBack      = { navController.navigateUp() }
                     )
                 }
 
-                // Add Meal — receives dayName + slotName as String arguments
+                // AddMealViewModel gets dayName + slotName from SavedStateHandle
                 composable(
                     route              = NavRoutes.ADD_MEAL,
                     arguments          = listOf(
@@ -269,18 +261,15 @@ fun AppNavGraph() {
                     exitTransition     = { exitSlide() },
                     popEnterTransition = { popEnterSlide() },
                     popExitTransition  = { popExitSlide() }
-                ) { backStackEntry ->
-                    val dayName  = backStackEntry.arguments?.getString("dayName")  ?: ""
-                    val slotName = backStackEntry.arguments?.getString("slotName") ?: ""
+                ) {
+                    val viewModel: AddMealViewModel = hiltViewModel()
                     AddMealScreen(
-                        dayName   = dayName,
-                        slotName  = slotName,
-                        viewModel = mealPlannerViewModel,
+                        viewModel = viewModel,
                         onBack    = { navController.navigateUp() }
                     )
                 }
 
-                // Recipe Builder — receives dayName + slotName as String arguments
+                // RecipeBuilderViewModel gets dayName + slotName from SavedStateHandle
                 composable(
                     route              = NavRoutes.RECIPE_BUILDER,
                     arguments          = listOf(
@@ -291,13 +280,10 @@ fun AppNavGraph() {
                     exitTransition     = { exitSlide() },
                     popEnterTransition = { popEnterSlide() },
                     popExitTransition  = { popExitSlide() }
-                ) { backStackEntry ->
-                    val dayName  = backStackEntry.arguments?.getString("dayName")  ?: ""
-                    val slotName = backStackEntry.arguments?.getString("slotName") ?: ""
+                ) {
+                    val viewModel: RecipeBuilderViewModel = hiltViewModel()
                     RecipeBuilderScreen(
-                        dayName   = dayName,
-                        slotName  = slotName,
-                        viewModel = mealPlannerViewModel,
+                        viewModel = viewModel,
                         onBack    = { navController.navigateUp() }
                     )
                 }
