@@ -24,6 +24,9 @@ object NavRoutes {
     const val MEAL_SLOT      = "meal_slot/{dayName}/{slotName}"
     const val ADD_MEAL       = "add_meal/{dayName}/{slotName}"
     const val RECIPE_BUILDER = "recipe_builder/{dayName}/{slotName}"
+    const val HABITS         = "habits"                 // Lab 11 — opens from Profile → My Habits
+    const val WEATHER        = "weather"                // OpenWeather — opens from Profile → Weather Today
+    const val COMMUNITY      = "community_recipes"      // Firestore — opens from Profile → Community Recipes
 
     // ── Parameterised route builders ──────────────────────────────────────────
     fun dayDetail(dayName: String)                       = "day_detail/$dayName"

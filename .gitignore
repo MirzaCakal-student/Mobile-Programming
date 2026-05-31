@@ -1,6 +1,7 @@
+# ─── IDE & build artefacts ──────────────────────────────────────────
 *.iml
 .gradle
-/local.properties
+.kotlin/
 /.idea/caches
 /.idea/libraries
 /.idea/modules.xml
@@ -12,4 +13,32 @@
 /captures
 .externalNativeBuild
 .cxx
+
+# ─── Local developer environment ────────────────────────────────────
+# Contains SDK path + OpenWeather API key (BuildConfig.OPENWEATHER_KEY)
 local.properties
+
+# ─── Firebase config — project ID + Android API key ─────────────────
+# Generate your own at console.firebase.google.com → Project Settings → Android app
+app/google-services.json
+google-services.json
+
+# ─── Android signing keys ───────────────────────────────────────────
+*.jks
+*.keystore
+keystore.properties
+
+# ─── Claude Code agent — local IDE config, not project code ─────────
+.claude/
+
+# ─── Generated study documentation (local-only study reference) ─────
+docs/
+
+# ─── Python (for backend/ FastAPI server) ───────────────────────────
+# Bytecode and virtual envs are regenerated locally — never push
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+env/

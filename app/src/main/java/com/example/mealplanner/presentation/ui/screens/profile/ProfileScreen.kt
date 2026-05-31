@@ -35,7 +35,9 @@ import com.example.mealplanner.presentation.viewmodel.ProfileViewModel
 @Composable
 fun ProfileScreen(
     viewModel: ProfileViewModel,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onNavigateToHabits: () -> Unit,
+    onNavigateToWeather: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -59,17 +61,19 @@ fun ProfileScreen(
             }
         }
         is ProfileUiState.Success -> ProfileScreenContent(
-            profile            = s.profile,
-            form               = s.form,
-            onNameChange       = viewModel::onNameChange,
-            onEmailChange      = viewModel::onEmailChange,
-            onWeightChange     = viewModel::onWeightChange,
-            onHeightChange     = viewModel::onHeightChange,
-            onAgeChange        = viewModel::onAgeChange,
+            profile             = s.profile,
+            form                = s.form,
+            onNameChange        = viewModel::onNameChange,
+            onEmailChange       = viewModel::onEmailChange,
+            onWeightChange      = viewModel::onWeightChange,
+            onHeightChange      = viewModel::onHeightChange,
+            onAgeChange         = viewModel::onAgeChange,
             onCalorieGoalChange = viewModel::onCalorieGoalChange,
-            onGenderChange     = viewModel::onGenderChange,
-            onSaveProfile      = viewModel::onSaveProfile,
-            onLogout           = viewModel::onLogout
+            onGenderChange      = viewModel::onGenderChange,
+            onSaveProfile       = viewModel::onSaveProfile,
+            onLogout            = viewModel::onLogout,
+            onNavigateToHabits  = onNavigateToHabits,
+            onNavigateToWeather = onNavigateToWeather
         )
     }
 }
@@ -86,7 +90,9 @@ fun ProfileScreenContent(
     onCalorieGoalChange: (String) -> Unit,
     onGenderChange: (String) -> Unit,
     onSaveProfile: () -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onNavigateToHabits: () -> Unit,
+    onNavigateToWeather: () -> Unit
 ) {
     Scaffold(
         topBar = {
@@ -135,6 +141,79 @@ fun ProfileScreenContent(
                         if (profile.heightCm > 0)
                             StatCard("${profile.heightCm} cm", "Height", Color(0xFF388E3C), modifier = Modifier.weight(1f))
                         StatCard("${profile.dailyCalorieGoal}", "Cal Goal", Color(0xFFF57C00), modifier = Modifier.weight(1f))
+                    }
+                }
+
+                // ── Cloud feature entry point — opens Habits (REST API backed) ──
+                Card(
+                    shape    = RoundedCornerShape(14.dp),
+                    colors   = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)),
+                    onClick  = onNavigateToHabits,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier             = Modifier.padding(14.dp),
+                        verticalAlignment    = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Filled.Checklist,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("My Habits", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+
+                        }
+                        Icon(
+                            Icons.Filled.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        )
+                    }
+                }
+
+                // ── Cloud feature entry point — opens Weather (OpenWeather REST API) ──
+                Card(
+                    shape    = RoundedCornerShape(14.dp),
+                    colors   = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)),
+                    onClick  = onNavigateToWeather,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier             = Modifier.padding(14.dp),
+                        verticalAlignment    = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Filled.WbSunny,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Weather Today", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                        }
+                        Icon(
+                            Icons.Filled.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        )
                     }
                 }
 

@@ -21,7 +21,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 
 @Composable
-fun SplashScreen(onFinished: () -> Unit) {
+fun SplashScreen(onFinished: (isLoggedIn: Boolean) -> Unit, isLoggedIn: Boolean = false) {
 
     val scale by animateFloatAsState(
         targetValue   = 1f,
@@ -33,7 +33,7 @@ fun SplashScreen(onFinished: () -> Unit) {
     LaunchedEffect(Unit) {
         alpha.animateTo(1f, animationSpec = tween(800, easing = FastOutSlowInEasing))
         delay(1600)
-        onFinished()
+        onFinished(isLoggedIn)
     }
 
     Box(

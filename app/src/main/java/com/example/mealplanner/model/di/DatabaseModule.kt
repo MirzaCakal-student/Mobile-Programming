@@ -9,7 +9,7 @@ import com.example.mealplanner.model.data.local.dao.UserAccountDao
 import com.example.mealplanner.model.data.local.dao.UserProfileDao
 import com.example.mealplanner.model.data.local.db.AppDatabase
 import com.example.mealplanner.model.repository.auth.AuthRepository
-import com.example.mealplanner.model.repository.auth.AuthRepositoryImpl
+import com.example.mealplanner.model.repository.auth.FirebaseAuthRepositoryImpl
 import com.example.mealplanner.model.repository.dayplan.DayPlanRepository
 import com.example.mealplanner.model.repository.dayplan.DayPlanRepositoryImpl
 import com.example.mealplanner.model.repository.ingredient.IngredientRepository
@@ -67,6 +67,9 @@ object DatabaseModule {
     @Provides @Singleton
     fun provideIngredientRepository(impl: IngredientRepositoryImpl): IngredientRepository = impl
 
+    // Lab 12 — AuthRepository is now Firebase-backed.
+    // The old Room-based AuthRepositoryImpl is kept in the source tree as historical
+    // reference but is no longer bound to the interface.
     @Provides @Singleton
-    fun provideAuthRepository(impl: AuthRepositoryImpl): AuthRepository = impl
+    fun provideAuthRepository(impl: FirebaseAuthRepositoryImpl): AuthRepository = impl
 }

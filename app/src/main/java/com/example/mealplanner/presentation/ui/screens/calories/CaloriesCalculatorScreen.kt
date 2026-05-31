@@ -1,7 +1,9 @@
 package com.example.mealplanner.presentation.ui.screens.calories
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -10,6 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -26,7 +29,10 @@ import com.example.mealplanner.presentation.viewmodel.CaloriesUiState
 import com.example.mealplanner.presentation.viewmodel.CaloriesViewModel
 
 @Composable
-fun CaloriesCalculatorScreen(viewModel: CaloriesViewModel) {
+fun CaloriesCalculatorScreen(
+    viewModel: CaloriesViewModel,
+    onNavigateToCommunity: () -> Unit
+) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     when (val s = uiState) {
@@ -36,15 +42,16 @@ fun CaloriesCalculatorScreen(viewModel: CaloriesViewModel) {
             }
         }
         is CaloriesUiState.Form -> CaloriesCalculatorContent(
-            form             = s.form,
-            activityOptions  = viewModel.activityOptions,
-            onWeightChange   = viewModel::onWeightChange,
-            onHeightChange   = viewModel::onHeightChange,
-            onAgeChange      = viewModel::onAgeChange,
-            onGenderChange   = viewModel::onGenderChange,
-            onActivityChange = viewModel::onActivityChange,
-            onCalculate      = viewModel::onCalculate,
-            onReset          = viewModel::onReset
+            form                  = s.form,
+            activityOptions       = viewModel.activityOptions,
+            onWeightChange        = viewModel::onWeightChange,
+            onHeightChange        = viewModel::onHeightChange,
+            onAgeChange           = viewModel::onAgeChange,
+            onGenderChange        = viewModel::onGenderChange,
+            onActivityChange      = viewModel::onActivityChange,
+            onCalculate           = viewModel::onCalculate,
+            onReset               = viewModel::onReset,
+            onNavigateToCommunity = onNavigateToCommunity
         )
     }
 }
@@ -59,7 +66,8 @@ fun CaloriesCalculatorContent(
     onGenderChange: (String) -> Unit,
     onActivityChange: (String) -> Unit,
     onCalculate: () -> Unit,
-    onReset: () -> Unit
+    onReset: () -> Unit,
+    onNavigateToCommunity: () -> Unit
 ) {
     Scaffold(
         topBar = { MealPlannerTopBar(title = "Calorie Calculator") }
@@ -138,6 +146,50 @@ fun CaloriesCalculatorContent(
 
             if (form.bmr != null && form.tdee != null) {
                 CaloriesResultSection(bmr = form.bmr, tdee = form.tdee)
+            }
+
+            // ── Cloud feature entry — opens Community Recipes (Firestore realtime) ──
+            // Lives here because both calorie planning and shared recipes are
+            // "find ideas for what to eat" — they belong together UX-wise.
+            Spacer(Modifier.height(12.dp))
+            Card(
+                shape    = RoundedCornerShape(14.dp),
+                colors   = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)),
+                onClick  = onNavigateToCommunity,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier              = Modifier.padding(14.dp),
+                    verticalAlignment     = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Filled.Groups,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Community Recipes", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                        Text(
+                            "Share & discover recipes from everyone (live)",
+                            fontSize = 12.sp,
+                            color    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                    Icon(
+                        Icons.Filled.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    )
+                }
             }
 
             Spacer(Modifier.height(16.dp))
