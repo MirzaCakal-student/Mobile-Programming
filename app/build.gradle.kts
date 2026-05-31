@@ -1,12 +1,25 @@
 // ============================================================
 // FILE: app/build.gradle.kts
 // ============================================================
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.google.services)      // reads google-services.json → generates Firebase config
 }
+
+// ── Load secrets from local.properties (gitignored) ──────────────────────────
+// We never hardcode API keys in source — they live in local.properties on the
+// developer's machine, and Gradle injects them at build time as BuildConfig fields.
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) FileInputStream(file).use { load(it) }
+}
+val openWeatherKey: String = localProperties.getProperty("OPENWEATHER_KEY", "")
 
 android {
     namespace = "com.example.mealplanner"
@@ -20,6 +33,11 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Expose the OpenWeather API key to Kotlin code as BuildConfig.OPENWEATHER_KEY.
+        // If local.properties is missing the key, the value is empty — the app still
+        // compiles but the Weather screen will surface an error message at runtime.
+        buildConfigField("String", "OPENWEATHER_KEY", "\"$openWeatherKey\"")
     }
 
     buildTypes {
@@ -37,6 +55,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true   // required so buildConfigField generates the BuildConfig class
     }
 }
 
@@ -74,10 +93,21 @@ dependencies {
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
 
-    // Retrofit — network layer (REST API)
+    // Retrofit — network layer (REST API, Lab 11)
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.gson)
+    implementation(libs.okhttp)
     implementation(libs.okhttp.logging.interceptor)
+
+    // Coil — async image loading for weather icons from openweathermap.org/img/wn/
+    implementation(libs.coil.compose)
+
+    // Firebase — Authentication + Firestore (Lab 12)
+    // BoM aligns versions; individual libraries inherit the BoM version.
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth.ktx)
+    implementation(libs.firebase.firestore.ktx)
+    implementation(libs.kotlinx.coroutines.play.services)   // .await() on Firebase Tasks
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

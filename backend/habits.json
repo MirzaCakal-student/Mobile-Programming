@@ -1,0 +1,18 @@
+[
+    {
+        "title": "Voda",
+        "description": "Pij vodu",
+        "frequency": "Daily",
+        "completed": true,
+        "user_id": 1,
+        "id": 1
+    },
+    {
+        "title": "tracnje",
+        "description": "trci 3 puta u sedmici",
+        "frequency": "Weekly",
+        "completed": true,
+        "user_id": 1,
+        "id": 3
+    }
+]

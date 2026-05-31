@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+venv/
+env/
+.venv/
+.env/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local state — keep habits.json under source control so the seed data
+# is shared across machines. Remove this line if you don't want to commit it.
+# habits.json

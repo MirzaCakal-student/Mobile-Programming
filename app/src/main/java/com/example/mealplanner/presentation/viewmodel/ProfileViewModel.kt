@@ -3,6 +3,7 @@ package com.example.mealplanner.presentation.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.mealplanner.model.UserProfile
+import com.example.mealplanner.model.repository.auth.AuthRepository
 import com.example.mealplanner.model.repository.profile.UserProfileRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -40,7 +41,8 @@ sealed interface ProfileNavigationEvent {
 
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
-    private val profileRepository: UserProfileRepository
+    private val profileRepository: UserProfileRepository,
+    private val authRepository: AuthRepository       // for Firebase logout
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<ProfileUiState>(ProfileUiState.Loading)
@@ -110,5 +112,10 @@ class ProfileViewModel @Inject constructor(
         success?.let { _uiState.value = it.copy(form = it.form.copy(isSaved = false)) }
     }
 
-    fun onLogout() { viewModelScope.launch { _navEvents.send(ProfileNavigationEvent.Logout) } }
+    fun onLogout() {
+        // 1) Clear the Firebase auth token so SplashScreen routes to Login on next launch.
+        authRepository.logout()
+        // 2) Tell the screen to navigate back to the AUTH graph.
+        viewModelScope.launch { _navEvents.send(ProfileNavigationEvent.Logout) }
+    }
 }

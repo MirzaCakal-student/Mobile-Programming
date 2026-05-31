@@ -18,7 +18,9 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.mealplanner.presentation.ui.screens.addmeal.AddMealScreen
 import com.example.mealplanner.presentation.ui.screens.calories.CaloriesCalculatorScreen
+import com.example.mealplanner.presentation.ui.screens.community.CommunityRecipesScreen
 import com.example.mealplanner.presentation.ui.screens.daydetail.DayDetailScreen
+import com.example.mealplanner.presentation.ui.screens.habits.HabitsScreen
 import com.example.mealplanner.presentation.ui.screens.home.HomeScreen
 import com.example.mealplanner.presentation.ui.screens.login.LoginScreen
 import com.example.mealplanner.presentation.ui.screens.mealplanner.MealPlannerScreen
@@ -27,9 +29,12 @@ import com.example.mealplanner.presentation.ui.screens.profile.ProfileScreen
 import com.example.mealplanner.presentation.ui.screens.recipe.RecipeBuilderScreen
 import com.example.mealplanner.presentation.ui.screens.signup.SignUpScreen
 import com.example.mealplanner.presentation.ui.screens.splash.SplashScreen
+import com.example.mealplanner.presentation.ui.screens.weather.WeatherScreen
 import com.example.mealplanner.presentation.viewmodel.AddMealViewModel
 import com.example.mealplanner.presentation.viewmodel.CaloriesViewModel
+import com.example.mealplanner.presentation.viewmodel.CommunityRecipesViewModel
 import com.example.mealplanner.presentation.viewmodel.DayDetailViewModel
+import com.example.mealplanner.presentation.viewmodel.HabitsViewModel
 import com.example.mealplanner.presentation.viewmodel.HomeViewModel
 import com.example.mealplanner.presentation.viewmodel.LoginViewModel
 import com.example.mealplanner.presentation.viewmodel.MealPlannerViewModel
@@ -37,6 +42,8 @@ import com.example.mealplanner.presentation.viewmodel.MealSlotViewModel
 import com.example.mealplanner.presentation.viewmodel.ProfileViewModel
 import com.example.mealplanner.presentation.viewmodel.RecipeBuilderViewModel
 import com.example.mealplanner.presentation.viewmodel.SignUpViewModel
+import com.example.mealplanner.presentation.viewmodel.SplashViewModel
+import com.example.mealplanner.presentation.viewmodel.WeatherViewModel
 
 // ── Slide-transition helpers ──────────────────────────────────────────────────
 
@@ -78,10 +85,15 @@ fun AppNavGraph() {
                     enterTransition = { fadeIn(tween(ANIM_MS)) },
                     exitTransition  = { fadeOut(tween(ANIM_MS)) }
                 ) {
+                    // Ask the SplashViewModel whether Firebase still holds a cached auth token.
+                    // If yes → skip Login entirely; if no → go to Login.
+                    val splashViewModel: SplashViewModel = hiltViewModel()
                     SplashScreen(
-                        onFinished = {
-                            navController.navigate(NavRoutes.LOGIN) {
-                                popUpTo(NavRoutes.SPLASH) { inclusive = true }
+                        isLoggedIn = splashViewModel.isLoggedIn,
+                        onFinished = { loggedIn ->
+                            val destination = if (loggedIn) NavRoutes.MAIN_GRAPH else NavRoutes.LOGIN
+                            navController.navigate(destination) {
+                                popUpTo(NavRoutes.AUTH_GRAPH) { inclusive = true }
                             }
                         }
                     )
@@ -182,7 +194,10 @@ fun AppNavGraph() {
                     popExitTransition  = { popExitSlide() }
                 ) {
                     val viewModel: CaloriesViewModel = hiltViewModel()
-                    CaloriesCalculatorScreen(viewModel = viewModel)
+                    CaloriesCalculatorScreen(
+                        viewModel             = viewModel,
+                        onNavigateToCommunity = { navController.navigate(NavRoutes.COMMUNITY) }
+                    )
                 }
 
                 composable(
@@ -194,12 +209,14 @@ fun AppNavGraph() {
                 ) {
                     val viewModel: ProfileViewModel = hiltViewModel()
                     ProfileScreen(
-                        viewModel = viewModel,
-                        onLogout  = {
+                        viewModel            = viewModel,
+                        onLogout             = {
                             navController.navigate(NavRoutes.LOGIN) {
                                 popUpTo(NavRoutes.MAIN_GRAPH) { inclusive = true }
                             }
-                        }
+                        },
+                        onNavigateToHabits  = { navController.navigate(NavRoutes.HABITS) },
+                        onNavigateToWeather = { navController.navigate(NavRoutes.WEATHER) }
                     )
                 }
 
@@ -283,6 +300,54 @@ fun AppNavGraph() {
                 ) {
                     val viewModel: RecipeBuilderViewModel = hiltViewModel()
                     RecipeBuilderScreen(
+                        viewModel = viewModel,
+                        onBack    = { navController.navigateUp() }
+                    )
+                }
+
+                // Lab 11 — Habits (Cloud) screen, opened from Profile → My Habits
+                // Backed by the Retrofit network repository (HabitRepository + HabitApiService)
+                composable(
+                    route              = NavRoutes.HABITS,
+                    enterTransition    = { enterSlide() },
+                    exitTransition     = { exitSlide() },
+                    popEnterTransition = { popEnterSlide() },
+                    popExitTransition  = { popExitSlide() }
+                ) {
+                    val viewModel: HabitsViewModel = hiltViewModel()
+                    HabitsScreen(
+                        viewModel = viewModel,
+                        onBack    = { navController.navigateUp() }
+                    )
+                }
+
+                // OpenWeather screen — opened from Profile → Weather Today
+                // Backed by the second Retrofit instance in NetworkModule (WeatherRepository).
+                composable(
+                    route              = NavRoutes.WEATHER,
+                    enterTransition    = { enterSlide() },
+                    exitTransition     = { exitSlide() },
+                    popEnterTransition = { popEnterSlide() },
+                    popExitTransition  = { popExitSlide() }
+                ) {
+                    val viewModel: WeatherViewModel = hiltViewModel()
+                    WeatherScreen(
+                        viewModel = viewModel,
+                        onBack    = { navController.navigateUp() }
+                    )
+                }
+
+                // Lab 12 — Community Recipes (Firestore realtime feed)
+                // Opened from Profile → Community Recipes. Backed by FirebaseFirestore.
+                composable(
+                    route              = NavRoutes.COMMUNITY,
+                    enterTransition    = { enterSlide() },
+                    exitTransition     = { exitSlide() },
+                    popEnterTransition = { popEnterSlide() },
+                    popExitTransition  = { popExitSlide() }
+                ) {
+                    val viewModel: CommunityRecipesViewModel = hiltViewModel()
+                    CommunityRecipesScreen(
                         viewModel = viewModel,
                         onBack    = { navController.navigateUp() }
                     )

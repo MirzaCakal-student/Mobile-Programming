@@ -76,4 +76,11 @@ class AuthRepositoryImpl @Inject constructor(
             )
         )
     }
+
+    // ── LEGACY no-ops ─────────────────────────────────────────────────────────
+    // Since Assignment 4 / Lab 12, the active implementation is FirebaseAuthRepositoryImpl.
+    // These methods exist only so this legacy class still satisfies the AuthRepository contract.
+    // The DI graph no longer binds to this implementation — see DatabaseModule.provideAuthRepository.
+    override fun logout()           = Unit
+    override fun isLoggedIn(): Boolean = false
 }
